@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5">
-    <title>🚀 Предприниматель — анимированная кнопка помощи</title>
+    <title>🚀 Предприниматель — платный переход</title>
     <!-- Yandex.Metrika counter -->
     <script type="text/javascript">
         (function(m,e,t,r,i,k,a){
@@ -12,7 +12,6 @@
             for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
             k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
         })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=107009667', 'ym');
-    
         ym(107009667, 'init', {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true});
     </script>
     <noscript><div><img src="https://mc.yandex.ru/watch/107009667" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
@@ -512,6 +511,19 @@
             background: #c0d0e0;
             box-shadow: 0 4px 0 #7f9fb0;
         }
+
+        .daily-cost-indicator {
+            margin-top: 10px;
+            font-size: 1.5rem;
+            text-align: center;
+            color: #1e3c5a;
+            background: #ffe5b9;
+            border-radius: 50px;
+            padding: 10px;
+            width: fit-content;
+            margin-left: auto;
+            margin-right: auto;
+        }
     </style>
 </head>
 <body>
@@ -548,6 +560,9 @@
                 <div class="action-button" id="takeLoanBtn">💳 Взять кредит</div>
             </div>
         </div>
+
+        <!-- Индикатор платы за день -->
+        <div class="daily-cost-indicator">💰 Плата за день: 30 монет</div>
 
         <div class="new-day-btn" id="newDayBtn">➡️ НОВЫЙ ДЕНЬ</div>
     </div>
@@ -631,6 +646,7 @@
             // Константы
             const BASE_PRICES = { toy: 22, furniture: 45, food: 12 };
             const BASE_COSTS = { toy: 5, furniture: 20, food: 3 };
+            const DAILY_COST = 30; // плата за новый день
 
             const PRODUCT_TYPES = {
                 toy: { name: '🧸 Игрушки', cost: BASE_COSTS.toy },
@@ -685,17 +701,48 @@
                 } catch (e) {}
             }
 
+            // Генерация заказа
             function generateRandomOrder() {
                 const types = ['toy', 'furniture', 'food'];
                 const type = types[Math.floor(Math.random() * types.length)];
                 const basePrice = BASE_PRICES[type];
+                
                 let quantity;
-                if (type === 'toy') quantity = 20 + Math.floor(Math.random() * 60);
-                else if (type === 'furniture') quantity = 5 + Math.floor(Math.random() * 20);
-                else quantity = 30 + Math.floor(Math.random() * 80);
-                const daysLeft = 3 + Math.floor(Math.random() * 8);
-                const urgencyBonus = 1 + (10 - daysLeft) * 0.05;
-                const pricePerUnit = Math.floor(basePrice * urgencyBonus);
+                const r = Math.random();
+                if (r < 0.3) {
+                    if (type === 'toy') quantity = 5 + Math.floor(Math.random() * 15);
+                    else if (type === 'furniture') quantity = 2 + Math.floor(Math.random() * 4);
+                    else quantity = 10 + Math.floor(Math.random() * 20);
+                } else if (r < 0.7) {
+                    if (type === 'toy') quantity = 20 + Math.floor(Math.random() * 40);
+                    else if (type === 'furniture') quantity = 5 + Math.floor(Math.random() * 10);
+                    else quantity = 30 + Math.floor(Math.random() * 50);
+                } else {
+                    if (type === 'toy') quantity = 60 + Math.floor(Math.random() * 100);
+                    else if (type === 'furniture') quantity = 15 + Math.floor(Math.random() * 30);
+                    else quantity = 80 + Math.floor(Math.random() * 150);
+                }
+
+                const daysLeft = 2 + Math.floor(Math.random() * 9);
+                const urgencyMultiplier = 0.9 + (10 - daysLeft) * 0.12;
+                
+                let sizeMultiplier;
+                if (type === 'toy') {
+                    if (quantity < 20) sizeMultiplier = 1.2;
+                    else if (quantity < 60) sizeMultiplier = 1.0;
+                    else sizeMultiplier = 0.85;
+                } else if (type === 'furniture') {
+                    if (quantity < 7) sizeMultiplier = 1.25;
+                    else if (quantity < 15) sizeMultiplier = 1.0;
+                    else sizeMultiplier = 0.8;
+                } else {
+                    if (quantity < 30) sizeMultiplier = 1.15;
+                    else if (quantity < 80) sizeMultiplier = 1.0;
+                    else sizeMultiplier = 0.9;
+                }
+
+                const pricePerUnit = Math.floor(basePrice * urgencyMultiplier * sizeMultiplier);
+                
                 return {
                     id: 'order_' + Date.now() + Math.random(),
                     productType: type,
@@ -824,8 +871,19 @@
                 closeModal('loanModal');
             }
 
+            // Новый день с платой
             function nextDay() {
                 if (cheaterDetected) return;
+
+                // Проверяем, хватает ли денег на оплату дня
+                if (game.cash < DAILY_COST) {
+                    showNotification(`💰 Не хватает денег на оплату нового дня (нужно ${DAILY_COST} монет). Заработайте больше или возьмите кредит.`);
+                    return;
+                }
+
+                // Списываем плату за день
+                game.cash -= DAILY_COST;
+
                 // Производство
                 game.equipment.forEach(m => {
                     if (m.health <= 0) return;
@@ -899,13 +957,12 @@
                     }
                 }
 
-                // Старение доступных заказов
+                // Старение доступных заказов (без уведомлений)
                 for (let i = game.availableOrders.length - 1; i >= 0; i--) {
                     const order = game.availableOrders[i];
                     order.daysLeft -= 1;
                     if (order.daysLeft <= 0) {
                         game.availableOrders.splice(i, 1);
-                        showNotification(`⏳ Заказ на ${getProductName(order.productType)} истёк (не взят)`);
                     }
                 }
 
@@ -1100,16 +1157,16 @@
             // --- ИНТЕРАКТИВНЫЙ ТУР ---
             const tourSteps = [
                 { element: '.money', text: '💰 Здесь твои деньги. Зарабатывай их, выполняя заказы!' },
-                { element: '.day', text: '📅 Каждый день нажимай кнопку "НОВЫЙ ДЕНЬ", чтобы производить товары и получать новые заказы.' },
+                { element: '.day', text: '📅 Каждый день нажимай кнопку "НОВЫЙ ДЕНЬ", чтобы производить товары и получать новые заказы. Но каждый день стоит 30 монет!' },
                 { element: '.rating', text: '⭐ Рейтинг показывает, насколько успешно ты ведёшь дело. Он растёт от прибыли и выполненных заказов.' },
                 { element: '.player-info', text: '🧑 Твоё имя. Прогресс сохраняется автоматически.' },
-                { element: '#ordersContainer .order-card:first-child', text: '📋 Доступные заказы. Чем меньше срок, тем дороже оплата. Бери, если есть подходящий станок.' },
+                { element: '#ordersContainer .order-card:first-child', text: '📋 Доступные заказы. Цена зависит от срочности и размера партии. Анализируй, стоит ли брать!' },
                 { element: '#myOrdersContainer', text: '⏳ Взятые заказы. Они будут выполнены, когда на складе накопится нужное количество товара.' },
                 { element: '#tabMachines', text: '🏭 Вкладка "Станки" — здесь ты видишь свои станки, их здоровье и производительность. Ремонтируй их вовремя!' },
                 { element: '#tabStorage', text: '📦 Вкладка "Склад" — здесь хранится готовая продукция. Себестоимость указана в скобках.' },
                 { element: '#buyMachineBtn', text: '➕ Купить новый станок. Открывает магазин, где можно выбрать подходящий.' },
                 { element: '#activeLoansContainer', text: '💰 Активные кредиты. Не бери больше двух сразу, иначе рейтинг упадёт.' },
-                { element: '#newDayBtn', text: '➡️ НОВЫЙ ДЕНЬ — самая важная кнопка. Запускает производство, списывает себестоимость, начисляет проценты по кредитам и приносит новые заказы.' }
+                { element: '#newDayBtn', text: '➡️ НОВЫЙ ДЕНЬ — теперь платный (30 монет). Запускает производство, списывает себестоимость, начисляет проценты по кредитам и приносит новые заказы.' }
             ];
 
             let currentTourStep = 0;
