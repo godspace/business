@@ -87,29 +87,33 @@
 
         /* ВИЗУАЛИЗАЦИЯ ФАБРИКИ */
         .factory-grid {
-            display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 15px;
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 15px;
             background: #d3e5f2; border-radius: 20px; padding: 15px; margin-bottom: 10px;
             min-height: 220px; border: 3px solid #b4c9db; box-shadow: inset 0 5px 10px rgba(0,0,0,0.05);
+            justify-items: center;
         }
+        
+        /* Строгий размер ячеек 128x128 */
         .machine-sprite {
-            background: white; border-radius: 15px; height: 90px; display: flex; flex-direction: column;
-            align-items: center; justify-content: center; box-shadow: 0 4px 0 #b4c9db; position: relative; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s;
+            background: white; border-radius: 15px; width: 128px; height: 128px; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; box-shadow: 0 4px 0 #b4c9db; position: relative; 
+            cursor: pointer; transition: transform 0.1s, box-shadow 0.1s;
         }
         .machine-sprite:hover { transform: translateY(-2px); box-shadow: 0 6px 0 #9cb5cb; }
         .machine-sprite:active { transform: translateY(2px); box-shadow: 0 2px 0 #b4c9db; }
         .machine-sprite.empty-slot {
             background: transparent; box-shadow: none; border: 3px dashed #b4c9db;
-            color: #b4c9db; font-size: 2.5rem; font-weight: bold;
+            color: #b4c9db; font-size: 4rem; font-weight: bold;
         }
         .machine-sprite.empty-slot:hover { border-color: #ffb84d; color: #ffb84d; background: rgba(255, 255, 255, 0.5); }
-        .machine-icon { font-size: 2.5rem; margin-bottom: 5px; user-select: none; }
-        .machine-health-mini { width: 80%; height: 8px; background: #ddd; border-radius: 10px; overflow: hidden; border: 1px solid #ccc; }
+        
+        .machine-health-mini { position: absolute; bottom: 5px; width: 80%; left: 10%; height: 8px; background: #ddd; border-radius: 10px; overflow: hidden; border: 1px solid #ccc; }
         .health-mini-fill { height: 100%; background: #6ec06e; transition: width 0.3s, background-color 0.3s; }
         .health-critical { background: #e48383 !important; }
 
         .machine-smoke {
             position: absolute; top: -15px; font-size: 1.5rem; animation: smokeRise 1s infinite alternate;
-            display: none; user-select: none; pointer-events: none;
+            display: none; user-select: none; pointer-events: none; z-index: 5;
         }
         .needs-repair .machine-smoke { display: block; }
         .needs-repair { animation: shake 0.5s infinite; border: 2px solid #e48383; box-shadow: 0 4px 0 #c76a6a; }
@@ -182,7 +186,7 @@
             margin-left: auto; margin-right: auto; box-shadow: inset 0 -3px 0 #e6c89c;
         }
 
-        /* ТУР (Восстановлен) */
+        /* ТУР */
         .tour-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 3000; }
         .tour-overlay.active { display: block; }
         .tour-highlight {
@@ -323,10 +327,11 @@
             const BASE_COSTS = { toy: 5, furniture: 20, food: 3 };
             const DAILY_COST = 30; 
 
+            // Ссылки на картинки станков с GitHub (raw-ссылки)
             const PRODUCT_TYPES = {
-                toy: { name: '🧸 Игрушки', cost: BASE_COSTS.toy, icon: '🧸' },
-                furniture: { name: '🪑 Мебель', cost: BASE_COSTS.furniture, icon: '🪑' },
-                food: { name: '🍫 Еда', cost: BASE_COSTS.food, icon: '🍫' }
+                toy: { name: '🧸 Игрушки', cost: BASE_COSTS.toy, img: 'https://raw.githubusercontent.com/godspace/business/main/BUTTONS/toy_button.png', icon: '🧸' },
+                furniture: { name: '🪑 Мебель', cost: BASE_COSTS.furniture, img: 'https://raw.githubusercontent.com/godspace/business/main/BUTTONS/wood_button.png', icon: '🪑' },
+                food: { name: '🍫 Еда', cost: BASE_COSTS.food, img: 'https://raw.githubusercontent.com/godspace/business/main/BUTTONS/food_button.png', icon: '🍫' }
             };
 
             const MACHINES = [
@@ -589,8 +594,22 @@
                 });
                 game.equipment = game.equipment.filter(m => m.health > 0);
 
-                for (let i = game.myOrders.length - 1; i >= 0; i--) {
+                // УМНАЯ ОЧЕРЕДЬ ВЫПОЛНЕНИЯ ЗАКАЗОВ
+                // Сортировка взятых заказов по возрастанию дней (самые срочные - первые)
+                game.myOrders.sort((a, b) => a.daysLeft - b.daysLeft);
+
+                // Запоминаем типы товаров, на которые нам не хватило запасов для самых срочных заказов.
+                // Менее срочные заказы на этот же тип товара не смогут «украсть» резерв.
+                let blockedProductTypes = {};
+
+                for (let i = 0; i < game.myOrders.length; ) {
                     const order = game.myOrders[i];
+                    
+                    if (blockedProductTypes[order.productType]) {
+                        i++; // Пропускаем, так как более срочный заказ на этот тип товара ожидает пополнения склада
+                        continue;
+                    }
+
                     if (game.storage[order.productType] >= order.quantity) {
                         game.storage[order.productType] -= order.quantity;
                         const income = order.quantity * order.pricePerUnit;
@@ -600,10 +619,17 @@
 
                         game.myOrders.splice(i, 1);
                         game.completedOrders++;
-                        showNotification(`🎉 Грузовик уехал! Заказ выполнен: +${income} монет`);
+                        
+                        showNotification(`🎉 Выполнен заказ: ${order.quantity} шт. ${getProductName(order.productType)}.\nПрибыль: +${income} монет!`);
+                        // i не увеличиваем, так как массив сдвинулся после splice
+                    } else {
+                        // Не смогли отгрузить этот заказ. Запрещаем отгружать менее срочные заказы этой же категории.
+                        blockedProductTypes[order.productType] = true;
+                        i++;
                     }
                 }
 
+                // Штрафы за просрочку
                 for (let i = game.myOrders.length - 1; i >= 0; i--) {
                     const order = game.myOrders[i];
                     order.daysLeft -= 1;
@@ -690,7 +716,7 @@
                                 <span>💵 Вся партия: ${order.totalValue}</span>
                             </div>
                             <div class="order-detail">
-                                <span>⏳ Осталось дней: ${order.daysLeft}</span>
+                                <span style="font-weight:bold; color:${order.daysLeft <= 3 ? '#c0392b' : 'inherit'};">⏳ Осталось дней: ${order.daysLeft}</span>
                                 <button class="take-btn" data-id="${order.id}" ${!canTake ? 'disabled' : ''}>✅ Беру!</button>
                             </div>
                         </div>`;
@@ -710,7 +736,7 @@
                             </div>
                             <div class="order-detail">
                                 <span>💵 Ждем: ${order.totalValue} монет</span>
-                                <span>⏳ Дней: ${order.daysLeft}</span>
+                                <span style="font-weight:bold; color:${order.daysLeft <= 3 ? '#c0392b' : 'inherit'};">⏳ Дней: ${order.daysLeft}</span>
                             </div>
                             <div style="font-size: 0.9rem; color: #555; text-align:right;">
                                 Готово: ${Math.min(game.storage[order.productType], order.quantity)} / ${order.quantity}
@@ -753,7 +779,7 @@
                              data-tooltip="${tooltip}" 
                              onclick="window.repairMachine('${m.uid}')">
                             <div class="machine-smoke">💨</div>
-                            <div class="machine-icon">${PRODUCT_TYPES[m.productType].icon}</div>
+                            <img src="${PRODUCT_TYPES[m.productType].img}" style="width: 100%; height: 100%; object-fit: contain; padding: 10px; pointer-events: none;" alt="Станок">
                             <div class="machine-health-mini">
                                 <div class="health-mini-fill ${isCritical ? 'health-critical' : ''}" style="width: ${m.health}%;"></div>
                             </div>
@@ -819,8 +845,12 @@
             function fillShopModal() {
                 const list = document.getElementById('machineShopList');
                 list.innerHTML = MACHINES.map(m => {
-                    return `<div class="machine-shop-item">
+                    const imgSrc = PRODUCT_TYPES[m.productType].img;
+                    return `<div class="machine-shop-item" style="display:flex; gap:15px; align-items:center;">
                         <div>
+                            <img src="${imgSrc}" alt="${m.name}" style="display:block;">
+                        </div>
+                        <div style="flex-grow:1;">
                             <strong>${m.name}</strong><br>
                             <span style="color:#555;">Мощность: ${m.outputPerDay}/день | Затраты: ${m.costPerItem} мон/шт</span><br>
                             <span style="font-weight:bold; color:#b86824;">Цена: ${m.price} монет</span>
@@ -856,14 +886,14 @@
                 takeLoan(offerId, amount);
             };
 
-            // --- ТУР ПО ИНТЕРФЕЙСУ (Восстановлен и адаптирован) ---
+            // --- ТУР ПО ИНТЕРФЕЙСУ ---
             const tourSteps = [
                 { element: '.money', text: '💰 Здесь твои деньги. Зарабатывай их, выполняя заказы!' },
                 { element: '.day', text: '📅 Каждый день нажимай кнопку "НОВЫЙ ДЕНЬ", чтобы производить товары и получать новые заказы.' },
                 { element: '.rating', text: '⭐ Рейтинг показывает, насколько успешно ты ведёшь дело. Растёт от прибыли и выполненных заказов.' },
                 { element: '.player-info', text: '🧑 Твоё имя. Прогресс сохраняется автоматически.' },
                 { element: '#ordersContainer', text: '📋 Рынок и заказы. Следи за процентами рынка: если цена падает, лучше не брать заказы на этот товар!' },
-                { element: '#myOrdersContainer', text: '⏳ Взятые заказы. Они будут выполнены, когда на складе накопится нужное количество товара.' },
+                { element: '#myOrdersContainer', text: '⏳ Взятые заказы. В первую очередь выполняются те заказы, у которых меньше всего дней до просрочки.' },
                 { element: '#tabMachines', text: '🏭 Вкладка "ЦЕХ". Нажимай на станки для ремонта! Кликни на пустой слот с плюсиком, чтобы купить новый.' },
                 { element: '#tabStorage', text: '📦 Вкладка "СКЛАД" — здесь хранится готовая продукция. Теперь ты снова видишь её себестоимость.' },
                 { element: '#activeLoansContainer', text: '💰 Активные кредиты. Не бери больше двух сразу, иначе рейтинг упадёт.' },
