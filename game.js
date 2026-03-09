@@ -1,7 +1,7 @@
 (function() {
     let game = null;
     let cheaterDetected = false;
-    let currentMachineUid = null; // Для запоминания, какой станок сейчас открыт
+    let currentMachineUid = null; 
 
     function showCheaterBanner() {
         if (document.getElementById('cheaterBanner')) return;
@@ -18,7 +18,7 @@
     setInterval(() => {
         if (game && !cheaterDetected) {
             if (game.cash < -1500 || game.cash > 1000000) showCheaterBanner(); 
-            if (game.equipment.length > 30) showCheaterBanner();
+            if (game.equipment.length > 50) showCheaterBanner();
             if (game.activeLoans.length > 5) showCheaterBanner();
             if (isNaN(game.cash) || isNaN(game.day)) showCheaterBanner();
         }
@@ -26,7 +26,35 @@
 
     const BASE_PRICES = { toy: 22, furniture: 45, food: 12 };
     const BASE_COSTS = { toy: 5, furniture: 20, food: 3 };
-    const DAILY_COST = 30; 
+
+    // --- ПРОГРЕССИВНАЯ ЕЖЕДНЕВНАЯ ПЛАТА ---
+    function getDailyCost() {
+        if (!game) return 30;
+        let base = 30;
+        let machinesCost = game.equipment.length * 15; // +15 монет за каждый станок
+        let total = base + machinesCost;
+        
+        // Скидка от логистики
+        if (game.upgrades && game.upgrades.includes('logistics')) {
+            total = Math.floor(total * 0.9); // -10%
+        }
+        return total;
+    }
+
+    // --- ОТДЕЛ УЛУЧШЕНИЙ ---
+    const UPGRADES = [
+        { id: 'marketing', name: '📢 Бренд-менеджмент', desc: 'Все новые заказы стоят на 15% дороже', price: 2000 },
+        { id: 'maintenance', name: '🛠️ Качественное масло', desc: 'Станки изнашиваются на 25% медленнее', price: 1500 },
+        { id: 'logistics', name: '🚚 Своя фура', desc: 'Снижает плату за день и стоимость сырья на 10%', price: 2500 }
+    ];
+
+    function getRawMaterialCost(type) {
+        let cost = BASE_COSTS[type];
+        if (game && game.upgrades && game.upgrades.includes('logistics')) {
+            cost = Math.max(1, Math.floor(cost * 0.9));
+        }
+        return cost;
+    }
 
     const PRODUCT_TYPES = {
         toy: { name: '🧸 Игрушки', cost: BASE_COSTS.toy, img: 'https://raw.githubusercontent.com/godspace/business/main/BUTTONS/toy_button.png', icon: '🧸' },
@@ -60,7 +88,7 @@
     const EVENTS = [
         {
             name: "🎉 Государственный грант",
-            probability: 0.10, 
+            probability: 0.08, 
             execute: (game) => {
                 const bonus = Math.floor(game.cash * 0.20);
                 const finalBonus = Math.min(bonus, 400);
@@ -71,11 +99,97 @@
         },
         {
             name: "⚡ Авария на электростанции",
-            probability: 0.10, 
+            probability: 0.08, 
             execute: (game) => {
                 const fine = Math.floor(game.cash * 0.05) + 30;
                 game.cash -= fine; 
                 return `Из-за скачка напряжения сгорели предохранители. Замена обошлась вам в ${fine} монет.`;
+            }
+        },
+        {
+            name: "🧯 Пожарная инспекция",
+            probability: 0.10, 
+            execute: (game) => {
+                const machinesCount = game.equipment.filter(m => m.health > 0).length;
+                if (machinesCount === 0) return null; 
+                const fine = machinesCount * 25; 
+                game.cash -= fine;
+                return `Инспектор выписал штраф за нарушение техники безопасности: по 25 монет за каждый работающий станок.\nУдержано ${fine} монет.`;
+            }
+        },
+        {
+            name: "🤝 Программа рефинансирования",
+            probability: 0.12, 
+            execute: (game) => {
+                if (game.cash >= 0) return null; 
+                const help = Math.floor(Math.abs(game.cash) * 0.50); 
+                game.cash += help;
+                return `Антикризисный фонд помогает должникам! Вам безвозмездно погасили 50% вашего овердрафта.\nСписано ${help} монет долга.`;
+            }
+        },
+        {
+            name: "🐀 Крысы на складе",
+            probability: 0.08, 
+            execute: (game) => {
+                if (game.storage.food > 0) {
+                    const lostFood = Math.ceil(game.storage.food * 0.20);
+                    game.storage.food -= lostFood;
+                    const lostValue = lostFood * BASE_COSTS.food;
+                    return `Грызуны пробрались на склад и испортили 20% ваших запасов еды!\nСписано ${lostFood} шт. (убыток по себестоимости: ${lostValue} 💰).`;
+                }
+                return null; 
+            }
+        },
+        {
+            name: "🏆 Премия 'Лучший работодатель'",
+            probability: 0.05, 
+            execute: (game) => {
+                const machinesCount = game.equipment.filter(m => m.health > 0).length;
+                if (machinesCount < 3) return null; 
+                const bonus = 150;
+                game.cash += bonus;
+                return `Мэрия наградила вашу фабрику за создание рабочих мест!\nПризовой фонд: +${bonus} монет.`;
+            }
+        },
+        {
+            name: "📈 Вирусный тренд",
+            probability: 0.08, 
+            execute: (game) => {
+                game.market.toy = Math.min(2.5, game.market.toy + 0.8);
+                return `Известный блогер сделал обзор на ваши игрушки! Спрос взлетел до небес.\nИндекс рынка игрушек резко вырос. Успейте продать их по максимальной цене, пока тренд не прошел!`;
+            }
+        },
+        {
+            name: "📉 Кризис недвижимости",
+            probability: 0.08, 
+            execute: (game) => {
+                game.market.furniture = Math.max(0.4, game.market.furniture - 0.5);
+                return `Люди перестали покупать новые квартиры, и спрос на мебель рухнул.\nЦены на рынке мебели сильно упали. Лучше пока придержать готовые стулья на складе!`;
+            }
+        },
+        {
+            name: "🥦 Мода на ЗОЖ",
+            probability: 0.07, 
+            execute: (game) => {
+                game.market.food = Math.max(0.4, game.market.food - 0.4);
+                return `В соцсетях завирусился тренд на здоровое питание. Спрос на шоколад и сладости резко упал!\nИндекс рынка еды снизился. Производство еды временно менее выгодно.`;
+            }
+        },
+        {
+            name: "🎈 Городской фестиваль",
+            probability: 0.08, 
+            execute: (game) => {
+                game.market.toy = Math.min(2.5, game.market.toy + 0.4);
+                game.market.food = Math.min(2.5, game.market.food + 0.3);
+                return `Мэрия объявила неделю детских праздников! Толпы туристов скупают сувениры.\nСпрос на игрушки и сладости сильно вырос. Отличный шанс продать запасы со склада по высокой цене!`;
+            }
+        },
+        {
+            name: "🏗️ Бум новостроек",
+            probability: 0.07, 
+            execute: (game) => {
+                game.market.furniture = Math.min(2.5, game.market.furniture + 0.6);
+                return `В городе сдали новый огромный жилой микрорайон. Всем новоселам срочно нужна мебель!\nИндекс рынка мебели взлетел. Самое время брать крупные заказы на стулья.`;
             }
         }
     ];
@@ -99,7 +213,9 @@
         if (!game || !game.market) return;
         for (let type in game.market) {
             let currentI = game.market[type];
-            currentI += MARKET_RETURN_SPEED * (1.0 - currentI);
+            let deviation = currentI - 1.0; 
+            let dynamicReturnSpeed = MARKET_RETURN_SPEED + Math.abs(deviation) * 0.25; 
+            currentI -= deviation * dynamicReturnSpeed;
             let shock = (Math.random() * 2 - 1) * MARKET_PARAMS[type].volatility;
             currentI += shock;
             game.market[type] = Math.max(MARKET_MIN, Math.min(MARKET_MAX, currentI));
@@ -148,6 +264,13 @@
         const type = types[Math.floor(Math.random() * types.length)];
         const basePrice = BASE_PRICES[type];
         
+        let marketIndex = (game && game.market && game.market[type]) ? game.market[type] : 1.0;
+        
+        // Бонус от маркетинга
+        if (game && game.upgrades && game.upgrades.includes('marketing')) {
+            marketIndex *= 1.15;
+        }
+        
         let quantity;
         const r = Math.random();
         if (r < 0.3) {
@@ -164,6 +287,8 @@
             else quantity = 80 + Math.floor(Math.random() * 150);
         }
 
+        quantity = Math.max(2, Math.floor(quantity / marketIndex));
+
         const daysLeft = 2 + Math.floor(Math.random() * 9);
         const urgencyMultiplier = 0.9 + (10 - daysLeft) * 0.12;
         
@@ -172,7 +297,6 @@
         else if (type === 'furniture') { sizeMultiplier = quantity < 7 ? 1.25 : (quantity < 15 ? 1.0 : 0.8); } 
         else { sizeMultiplier = quantity < 30 ? 1.15 : (quantity < 80 ? 1.0 : 0.9); }
 
-        const marketIndex = (game && game.market && game.market[type]) ? game.market[type] : 1.0;
         const pricePerUnit = Math.floor(basePrice * urgencyMultiplier * sizeMultiplier * marketIndex);
         
         return {
@@ -194,6 +318,10 @@
         rating += game.completedOrders * 20;
         rating -= game.failedOrders * 30;
         rating += game.day;
+        
+        // Бонус за улучшения
+        rating += (game.upgrades ? game.upgrades.length * 100 : 0);
+        
         game.rating = Math.max(0, rating);
     }
 
@@ -242,6 +370,26 @@
         render();
     }
 
+    // --- ОТМЕНА ЗАКАЗА ---
+    window.cancelOrder = function(orderId) {
+        if (cheaterDetected) return;
+        const index = game.myOrders.findIndex(o => o.id === orderId);
+        if (index === -1) return;
+        
+        const order = game.myOrders[index];
+        const penalty = Math.max(1, Math.floor(order.totalValue * order.penaltyRate));
+        
+        const confirmCancel = confirm(`Вы уверены, что хотите отказаться от заказа?\nВам придется выплатить неустойку: ${penalty} монет.`);
+        
+        if (confirmCancel) {
+            game.cash -= penalty;
+            game.failedOrders++;
+            game.myOrders.splice(index, 1);
+            showNotification(`📉 Вы отказались от заказа. Уплачена неустойка ${penalty} монет.`);
+            render();
+        }
+    };
+
     window.buyMachine = function(machineId) {
         if (cheaterDetected) return;
         const machineTemplate = MACHINES.find(m => m.id === machineId);
@@ -253,8 +401,8 @@
         game.cash -= machineTemplate.price;
         const newMachine = {
             ...machineTemplate,
-            baseOutputPerDay: machineTemplate.outputPerDay, // Сохраняем базу для ползунка
-            performance: 1.0, // Дефолтная нагрузка x1
+            baseOutputPerDay: machineTemplate.outputPerDay, 
+            performance: 1.0, 
             health: 100,
             uid: machineTemplate.id + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8)
         };
@@ -292,14 +440,14 @@
         slider.onchange = () => {
             machine.performance = parseFloat(slider.value);
             saveGame();
-            render(); // Обновляем данные на фоне
+            render(); 
         };
         updateSliderLabels();
 
         const repairCost = Math.floor(machine.price * 0.3);
         document.getElementById('machineModalRepairBtn').innerText = `🔧 Починить (${repairCost} 💰)`;
         
-        const sellPrice = Math.floor(machine.price * 0.5 * (machine.health / 100)); // Цена зависит от здоровья
+        const sellPrice = Math.floor(machine.price * 0.5 * (machine.health / 100)); 
         document.getElementById('machineModalSellBtn').innerText = `💰 Продать (${sellPrice > 0 ? sellPrice : 0} 💰)`;
 
         document.getElementById('machineModal').classList.add('active');
@@ -324,7 +472,6 @@
         showNotification(`🔧 Станок отремонтирован! (-${repairCost} монет)`);
         
         document.getElementById('machineModalHealth').innerText = machine.health;
-        // Пересчитываем цену продажи
         const sellPrice = Math.floor(machine.price * 0.5 * (machine.health / 100));
         document.getElementById('machineModalSellBtn').innerText = `💰 Продать (${sellPrice} 💰)`;
         
@@ -365,7 +512,9 @@
     function nextDay() {
         if (cheaterDetected) return;
 
-        game.cash -= DAILY_COST;
+        // Взимаем прогрессивную плату
+        const currentDailyCost = getDailyCost();
+        game.cash -= currentDailyCost;
 
         if (game.cash < 0) {
             const penalty = Math.ceil(Math.abs(game.cash) * 0.05); 
@@ -399,13 +548,14 @@
 
         handleDailyEvent();
 
-        // Производство с учетом множителя производительности
         game.equipment.forEach(m => {
             if (m.health <= 0) return;
             const type = m.productType;
             const perf = m.performance || 1.0;
-            const out = Math.floor((m.baseOutputPerDay || m.outputPerDay) * perf); // Вычисляем мощность
-            const cost = m.costPerItem * out;
+            const out = Math.floor((m.baseOutputPerDay || m.outputPerDay) * perf); 
+            
+            // Затраты на сырье с учетом логистики
+            const cost = getRawMaterialCost(type) * out;
             
             if (game.cash >= cost) {
                 game.cash -= cost;
@@ -415,11 +565,16 @@
             }
         });
 
-        // Износ с учетом множителя производительности
         game.equipment.forEach(m => {
             if (m.health <= 0) return;
             const perf = m.performance || 1.0;
-            const wear = Math.floor((4 + Math.random() * 9) * perf); 
+            let wear = Math.floor((4 + Math.random() * 9) * perf); 
+            
+            // Бонус рембазы (износ медленнее)
+            if (game.upgrades && game.upgrades.includes('maintenance')) {
+                wear = Math.floor(wear * 0.75);
+            }
+            
             m.health = Math.max(0, m.health - wear);
             if (m.health <= 0) {
                 showNotification(`💥 КАТАСТРОФА! Станок ${m.name} не выдержал нагрузки, сломался и был сдан в металлолом!`);
@@ -481,7 +636,7 @@
                 game.activeLoans.splice(i, 1); 
                 
                 if (game.cash < 0) {
-                    showNotification(`⚠️ СРОК КРЕДИТА ИСТЕК!\n\nБанк принудительно списал ${paidAmount} монет. Ваш счет ушел в минус!\n\nЕсли общий долг достигнет -1000 монет, фабрика закроется.`);
+                    showNotification(`⚠️ СРОК КРЕДИТА ИСТЕК!\n\nБанк принудительно списал ${paidAmount} монет. Ваш счет ушел в минус!`);
                 } else {
                     showNotification(`✅ Банк списал долг по кредиту (${paidAmount} монет).`);
                 }
@@ -519,6 +674,11 @@
 
         document.getElementById('dayDisplay').innerText = game.day;
         document.getElementById('ratingDisplay').innerText = game.rating;
+        
+        const dailyCostIndicator = document.getElementById('dailyCostIndicator');
+        if (dailyCostIndicator) {
+            dailyCostIndicator.innerText = `💰 Плата за день: ${getDailyCost()} монет`;
+        }
 
         const ordersDiv = document.getElementById('ordersContainer');
         
@@ -565,6 +725,7 @@
             myOrdersDiv.innerHTML = '<div class="order-card">📭 Вы свободны. Возьмите заказ!</div>';
         } else {
             myOrdersDiv.innerHTML = game.myOrders.map(order => {
+                const penalty = Math.max(1, Math.floor(order.totalValue * order.penaltyRate));
                 return `<div class="order-card">
                     <div class="order-header">
                         <span>${getProductName(order.productType)}</span>
@@ -577,6 +738,7 @@
                     <div style="font-size: 0.9rem; color: #555; text-align:right;">
                         Готово: ${Math.min(game.storage[order.productType], order.quantity)} / ${order.quantity}
                     </div>
+                    <button class="cancel-btn" onclick="window.cancelOrder('${order.id}')" title="Штраф 10%">❌ Отказаться (-${penalty}💰)</button>
                 </div>`;
             }).join('');
         }
@@ -608,8 +770,6 @@
             if (i < game.equipment.length) {
                 let m = game.equipment[i];
                 let isCritical = m.health < 30;
-                let repairCost = Math.floor(m.price * 0.3);
-                
                 let perf = m.performance || 1.0;
                 let currentOut = Math.floor((m.baseOutputPerDay || m.outputPerDay) * perf);
                 let tooltip = `${m.name} | Здоровье: ${m.health}% | ⚡ ${currentOut} шт/дн | Нагрузка: x${perf}`;
@@ -645,7 +805,7 @@
             storageDiv.innerHTML = '<div style="text-align:center; margin-top: 20px;">🕸️ На складе гуляет ветер</div>';
         } else {
             storageDiv.innerHTML = nonEmpty.map(([type, amount]) => {
-                const cost = PRODUCT_TYPES[type].cost;
+                const cost = getRawMaterialCost(type);
                 return `<div class="storage-item">
                     <span>${getProductName(type)}</span>
                     <span><strong style="font-size: 1.3rem;">📦 ${amount} шт</strong> <span style="color:#555; font-size:0.9rem;">(себест. ${cost} мон)</span></span>
@@ -666,7 +826,7 @@
                     
                     const perf = m.performance || 1.0;
                     const currentOut = Math.floor((m.baseOutputPerDay || m.outputPerDay) * perf);
-                    const dailyCost = currentOut * m.costPerItem;
+                    const dailyCost = currentOut * getRawMaterialCost(m.productType);
                     
                     costsByType[m.productType].amount += currentOut;
                     costsByType[m.productType].cost += dailyCost;
@@ -707,6 +867,45 @@
 
         saveGame();
     }
+
+    // --- ФУНКЦИИ УЛУЧШЕНИЙ ---
+    window.openUpgradesModal = function() {
+        if (cheaterDetected) return;
+        const list = document.getElementById('upgradesList');
+        
+        list.innerHTML = UPGRADES.map(u => {
+            const isPurchased = game.upgrades && game.upgrades.includes(u.id);
+            return `<div class="upgrade-item ${isPurchased ? 'purchased' : ''}">
+                <div style="flex-grow:1;">
+                    <strong>${u.name}</strong><br>
+                    <span style="color:#555; font-size: 1rem;">${u.desc}</span><br>
+                    ${!isPurchased ? `<span style="font-weight:bold; color:#b86824;">Цена: ${u.price} монет</span>` : `<span style="font-weight:bold; color:#27ae60;">✅ Куплено</span>`}
+                </div>
+                ${!isPurchased ? `<button onclick="window.buyUpgrade('${u.id}')">Купить</button>` : ''}
+            </div>`;
+        }).join('');
+        
+        document.getElementById('upgradesModal').classList.add('active');
+    };
+
+    window.buyUpgrade = function(upgradeId) {
+        if (cheaterDetected) return;
+        const upgrade = UPGRADES.find(u => u.id === upgradeId);
+        if (!upgrade) return;
+        
+        if (game.cash < upgrade.price) {
+            showNotification('💰 Недостаточно денег для инвестиций!');
+            return;
+        }
+        
+        game.cash -= upgrade.price;
+        if (!game.upgrades) game.upgrades = [];
+        game.upgrades.push(upgrade.id);
+        
+        showNotification(`🚀 Улучшение "${upgrade.name}" успешно внедрено на фабрике!`);
+        window.openUpgradesModal();
+        render();
+    };
 
     window.openModal = function(id) {
         document.getElementById(id).classList.add('active');
@@ -772,7 +971,6 @@
             const maxIncome = Math.max(...game.taxHistory.map(h => h.income));
             
             container.innerHTML = game.taxHistory.map(h => {
-                // Теперь пропорция 100% строгая
                 const heightPercent = maxIncome > 0 ? (h.income / maxIncome) * 100 : 0; 
                 const taxPercent = h.income > 0 ? (h.tax / h.income) * 100 : 0;
                 const netPercent = 100 - taxPercent;
@@ -793,7 +991,6 @@
         document.getElementById('taxModal').classList.add('active');
     };
 
-    // --- ОСТАВШАЯСЯ ЛОГИКА ТУТОРИАЛА И ИНИЦИАЛИЗАЦИИ ---
     const tourSteps = [
         { element: '.money', text: '💰 Здесь твои деньги. Зарабатывай их, выполняя заказы!' },
         { element: '.day', text: '📅 Каждый день нажимай кнопку "НОВЫЙ ДЕНЬ", чтобы производить товары и получать новые заказы.' },
@@ -806,7 +1003,7 @@
         { element: '#tabCosts', text: '📉 Вкладка "ЗАТРАТЫ" показывает, какую сумму ежедневно съедает закупка сырья для твоих станков.' },
         { element: '#activeLoansContainer', text: '🏦 Активные кредиты. Не бери больше двух сразу, иначе рейтинг упадёт.' },
         { element: '#showTaxBtn', text: '📊 График "Доходы и Налоги". Помни: каждый 30-й день государство забирает 13% от твоих доходов за месяц!' },
-        { element: '#newDayBtn', text: '➡️ НОВЫЙ ДЕНЬ — платный (30 монет). Запускает производство, начисляет штрафы за минус на счету и приносит новые заказы.' }
+        { element: '#newDayBtn', text: '➡️ НОВЫЙ ДЕНЬ. Запускает производство, списывает ежедневную плату и приносит заказы.' }
     ];
 
     let currentTourStep = 0;
@@ -848,7 +1045,10 @@
     }
 
     function startTour() {
-        if (!game || !game.playerName) return;
+        if (!game || !game.playerName) {
+            showNotification('Сначала войдите в игру');
+            return;
+        }
         helpBtn.classList.remove('help-icon-attention');
         currentTourStep = 0;
         tourOverlay.classList.add('active');
@@ -897,7 +1097,7 @@
 
     function loadGame(name) {
         if (!name) return;
-        let isNewPlayer = false; // Флаг для проверки, новичок ли это
+        let isNewPlayer = false; 
         
         const saved = localStorage.getItem(getSaveKey(name));
         if (saved) {
@@ -910,29 +1110,30 @@
                     if (!m.performance) m.performance = 1.0;
                 });
                 if (!game.taxHistory) { game.taxHistory = []; game.monthlyIncome = 0; }
+                if (!game.upgrades) game.upgrades = [];
             } catch (e) { game = null; }
         }
         
         if (!game) {
-            isNewPlayer = true; // Сохранений нет — создаем новую игру
+            isNewPlayer = true; 
             game = {
                 day: 1, cash: 0, rating: 0,
                 equipment: [], storage: { toy: 0, furniture: 0, food: 0 }, activeLoans: [],
                 myOrders: [], availableOrders: [], completedOrders: 0, failedOrders: 0,
                 playerName: name, market: { toy: 1.0, furniture: 1.0, food: 1.0 },
-                monthlyIncome: 0, taxHistory: []
+                monthlyIncome: 0, taxHistory: [], upgrades: []
             };
             for (let i = 0; i < 3; i++) game.availableOrders.push(generateRandomOrder());
         }
         if (!game.market) game.market = { toy: 1.0, furniture: 1.0, food: 1.0 };
         if (game.monthlyIncome === undefined) { game.monthlyIncome = 0; game.taxHistory = []; }
+        if (!game.upgrades) game.upgrades = [];
 
         document.getElementById('playerNameDisplay').innerText = game.playerName;
         document.getElementById('loginModal').classList.remove('active');
         render();
         updateHelpButtonAnimation();
 
-        // Если это новая игра, автоматически запускаем тур с небольшой задержкой
         if (isNewPlayer) {
             setTimeout(() => {
                 startTour();
@@ -940,26 +1141,23 @@
         }
     }
 
-    // --- ФУНКЦИЯ ПОЛНОГО ПЕРЕЗАПУСКА (СБРОСА) ---
     window.restartGame = function() {
         if (!game || !game.playerName) return;
         
-        // Запрашиваем подтверждение через встроенное окно браузера
         const isConfirmed = confirm(`🚨 ВНИМАНИЕ!\n\nВы уверены, что хотите начать игру с самого начала? \nВсе ваши деньги, станки и рейтинг будут навсегда удалены!`);
         
         if (isConfirmed) {
             const currentName = game.playerName;
-            localStorage.removeItem(getSaveKey(currentName)); // Удаляем сохранение
-            localStorage.removeItem('tourShown_' + currentName); // Сбрасываем флаг тура
-            game = null; // Очищаем память
-            loadGame(currentName); // Загружаем заново (создастся чистый профиль)
+            localStorage.removeItem(getSaveKey(currentName)); 
+            localStorage.removeItem('tourShown_' + currentName); 
+            game = null; 
+            loadGame(currentName); 
             showNotification('🔄 Игра начата с чистого листа. Удачи, предприниматель!');
         }
     };
 
     loadProfileList();
 
-    // Обновленная логика кнопок входа
     document.getElementById('loginBtn').addEventListener('click', () => {
         const selected = document.getElementById('profileSelect').value;
         if (selected) {
@@ -972,7 +1170,6 @@
     document.getElementById('newGameBtn').addEventListener('click', () => {
         const newName = document.getElementById('newPlayerName').value.trim();
         if (newName) {
-            // Защита от перезаписи: проверяем, нет ли уже такого имени
             if (localStorage.getItem(getSaveKey(newName))) {
                 alert('⚠️ Игрок с таким именем уже существует! Выберите его в верхнем списке или придумайте другое имя.');
             } else {
@@ -998,6 +1195,11 @@
         document.getElementById('closeTaxModal').addEventListener('click', () => closeModal('taxModal'));
     }
 
+    if (document.getElementById('openUpgradesBtn')) {
+        document.getElementById('openUpgradesBtn').addEventListener('click', window.openUpgradesModal);
+        document.getElementById('closeUpgradesModal').addEventListener('click', () => closeModal('upgradesModal'));
+    }
+
     const tabs = ['Machines', 'Storage', 'Costs'];
     tabs.forEach(tabName => {
         const btn = document.getElementById('tab' + tabName);
@@ -1015,7 +1217,6 @@
         }
     });
 
-    // Привязываем кнопку перезапуска
     if (document.getElementById('restartBtn')) {
         document.getElementById('restartBtn').addEventListener('click', window.restartGame);
     }

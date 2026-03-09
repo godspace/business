@@ -1,7 +1,14 @@
+// ==========================================
+// ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ИНТЕРФЕЙСА
+// ==========================================
 window.currentMachineUid = null; 
 let notificationQueue = [];
 let notificationModalActive = false;
+let cheaterDetected = false;
 
+// ==========================================
+// АНТИЧИТ И ЗАЩИТА
+// ==========================================
 function showCheaterBanner() {
     if (document.getElementById('cheaterBanner')) return;
     const banner = document.createElement('div');
@@ -23,6 +30,9 @@ setInterval(() => {
     }
 }, 1500);
 
+// ==========================================
+// СИСТЕМА УВЕДОМЛЕНИЙ
+// ==========================================
 window.showNotification = function(message) {
     notificationQueue.push(message);
     if (!notificationModalActive) showNextNotification();
@@ -45,10 +55,14 @@ window.closeNotification = function() {
     showNextNotification();
 };
 
+// ==========================================
+// ГЛАВНАЯ ФУНКЦИЯ ОТРИСОВКИ (RENDER)
+// ==========================================
 window.render = function() {
     if (cheaterDetected) return;
-    recalcRating();
+    if (typeof recalcRating === 'function') recalcRating(); 
 
+    // 1. ВЕРХНЯЯ ПАНЕЛЬ
     const cashDisplay = document.getElementById('cashDisplay');
     cashDisplay.innerText = game.cash;
     if (game.cash < 0) {
@@ -67,6 +81,7 @@ window.render = function() {
         dailyCostIndicator.innerText = `💰 Плата за день: ${getDailyCost()} монет`;
     }
 
+    // 2. ДОСТУПНЫЕ ЗАКАЗЫ (РЫНОК)
     const ordersDiv = document.getElementById('ordersContainer');
     let marketHtml = '';
     if (game.market) {
@@ -106,6 +121,7 @@ window.render = function() {
         ordersDiv.innerHTML = marketHtml + ordersHtml;
     }
 
+    // 3. ТЕКУЩИЕ ЗАКАЗЫ (В ЗАПУСКЕ)
     const myOrdersDiv = document.getElementById('myOrdersContainer');
     if (game.myOrders.length === 0) {
         myOrdersDiv.innerHTML = '<div class="order-card">📭 Вы свободны. Возьмите заказ!</div>';
@@ -129,73 +145,124 @@ window.render = function() {
         }).join('');
     }
 
+    // 4. ВКЛАДКА "ЦЕХ" (СТАНКИ И НЕДВИЖИМОСТЬ)
     const machinesDiv = document.getElementById('machinesTab');
     let factoryHtml = '';
+    const currentStage = STAGES[game.stageLevel || 0];
 
-    if (game.equipment.length > 0) {
-        const groups = {};
-        game.equipment.forEach(m => {
-            if (!groups[m.productType]) groups[m.productType] = { count: 0, totalOutput: 0 };
-            groups[m.productType].count++;
-            const perf = m.performance || 1.0;
-            groups[m.productType].totalOutput += Math.floor((m.baseOutputPerDay || m.outputPerDay) * perf);
-        });
-        factoryHtml += '<div class="machine-summary">';
-        for (let type in groups) {
-            factoryHtml += `<div class="summary-item">${PRODUCT_TYPES[type].icon} ${groups[type].totalOutput} шт/день</div>`;
-        }
-        factoryHtml += '</div>';
-    }
+    // Меняем цвета сайта в зависимости от уровня здания
+    document.body.style.background = currentStage.bodyBg;
+    document.getElementById('gameWrapper').style.background = currentStage.wrapBg;
 
-    factoryHtml += `<div class="factory-grid">`;
-    const totalSlots = Math.max(8, game.equipment.length + (4 - (game.equipment.length % 4))); 
-    for (let i = 0; i < totalSlots; i++) {
-        if (i < game.equipment.length) {
-            let m = game.equipment[i];
-            let isCritical = m.health < 30;
-            let perf = m.performance || 1.0;
-            let currentOut = Math.floor((m.baseOutputPerDay || m.outputPerDay) * perf);
-            let tooltip = `${m.name} | Здоровье: ${m.health}% | ⚡ ${currentOut} шт/дн | Нагрузка: x${perf}`;
-            
-            factoryHtml += `
-            <div class="machine-sprite ${isCritical ? 'needs-repair' : ''}" data-uid="${m.uid}" data-tooltip="${tooltip}" onclick="window.openMachineModal('${m.uid}')">
-                <div class="machine-smoke">💨</div>
-                <img src="${PRODUCT_TYPES[m.productType].img}" style="width: 100%; height: 100%; object-fit: contain; padding: 10px; pointer-events: none;" alt="Станок">
-                <div class="machine-health-mini"><div class="health-mini-fill ${isCritical ? 'health-critical' : ''}" style="width: ${m.health}%;"></div></div>
-            </div>`;
-        } else {
-            factoryHtml += `<div class="machine-sprite empty-slot" onclick="window.openModal('shopModal')" data-tooltip="Купить новый станок">+</div>`;
+    // --- ЕСЛИ ЗДАНИЯ НЕТ (УРОВЕНЬ 0) ---
+    if ((game.stageLevel || 0) === 0) {
+        factoryHtml += `<div style="text-align:center; padding: 30px; background: #ffe0e0; border-radius: 20px; border: 3px dashed #c0392b; margin-bottom: 20px;">
+            <div style="font-size: 4rem; margin-bottom: 10px;">⛺</div>
+            <h3 style="color: #c0392b; margin-bottom: 10px;">У вас нет помещения!</h3>
+            <p style="margin-bottom: 15px; color: #1e3c5a; font-weight: bold;">Станки нельзя ставить на улице.<br>Возьмите стартовый кредит в банке и арендуйте гараж.</p>
+            <button onclick="window.openBuildingsModal()" style="font-size: 1.3rem; padding: 15px 30px; background: #2ecc71; box-shadow: 0 6px 0 #27ae60; border: none; border-radius: 40px; color: white; cursor: pointer; font-weight: bold;">🏢 Рынок недвижимости</button>
+        </div>`;
+    } 
+    // --- ЕСЛИ ЗДАНИЕ ЕСТЬ (УРОВЕНЬ 1+) ---
+    else {
+        factoryHtml += `<div style="background: #e1f0fa; border: 2px solid #b4c9db; border-radius: 20px; padding: 15px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+            <div style="display: flex; gap: 15px; align-items: center;">
+                <img src="${currentStage.img}" style="width: 80px; height: 80px; object-fit: contain; background: white; border-radius: 10px; border: 2px solid #b4c9db;">
+                <div>
+                    <div style="font-size: 1.4rem; font-weight: 800; color: #1e3c5a;">${currentStage.name}</div>
+                    <div style="color: #555; font-size: 1rem;">Аренда: ${currentStage.rent} 💰/день | Мест: ${game.equipment.length} / ${currentStage.maxMachines}</div>
+                </div>
+            </div>
+            ${game.stageLevel < STAGES.length - 1 ? 
+                `<button onclick="window.openBuildingsModal()" style="margin: 0; background: #3498db; box-shadow: 0 4px 0 #2980b9; color: white; font-weight: bold; border-radius: 30px; font-size: 1.1rem; padding: 10px 20px; cursor: pointer; border: none;">Агентство недвижимости</button>` 
+                : `<div style="color: #27ae60; font-weight: bold; font-size: 1.1rem;">Максимальное расширение</div>`}
+        </div>`;
+
+        // Сводка мощностей
+        if (game.equipment.length > 0) {
+            const groups = {};
+            game.equipment.forEach(m => {
+                if (!groups[m.productType]) groups[m.productType] = { count: 0, totalOutput: 0 };
+                groups[m.productType].count++;
+                const perf = m.performance || 1.0;
+                groups[m.productType].totalOutput += Math.floor((m.baseOutputPerDay || m.outputPerDay) * perf);
+            });
+            factoryHtml += '<div class="machine-summary">';
+            for (let type in groups) {
+                factoryHtml += `<div class="summary-item">${PRODUCT_TYPES[type].icon} ${groups[type].totalOutput} шт/день</div>`;
+            }
+            factoryHtml += '</div>';
         }
-    }
-    factoryHtml += `</div>`;
-    if(game.equipment.length > 0) {
-         factoryHtml += `<div style="text-align:center; color:#7fa6c2; font-size: 1rem; margin-bottom:10px;">⚙️ Кликни по станку для настройки или ремонта.</div>`;
+
+        // Сетка станков (Ограничена текущим зданием)
+        factoryHtml += `<div class="factory-grid">`;
+        const totalSlots = currentStage.maxMachines; 
+
+        for (let i = 0; i < totalSlots; i++) {
+            if (i < game.equipment.length) {
+                let m = game.equipment[i];
+                let isCritical = m.health < 30;
+                let perf = m.performance || 1.0;
+                let currentOut = Math.floor((m.baseOutputPerDay || m.outputPerDay) * perf);
+                let tooltip = `${m.name} | Здоровье: ${m.health}% | ⚡ ${currentOut} шт/дн | Нагрузка: x${perf}`;
+                
+                factoryHtml += `
+                <div class="machine-sprite ${isCritical ? 'needs-repair' : ''}" 
+                     data-uid="${m.uid}" 
+                     data-tooltip="${tooltip}" 
+                     onclick="window.openMachineModal('${m.uid}')">
+                    <div class="machine-smoke">💨</div>
+                    <img src="${PRODUCT_TYPES[m.productType].img}" style="width: 100%; height: 100%; object-fit: contain; padding: 10px; pointer-events: none;" alt="Станок">
+                    <div class="machine-health-mini">
+                        <div class="health-mini-fill ${isCritical ? 'health-critical' : ''}" style="width: ${m.health}%;"></div>
+                    </div>
+                </div>`;
+            } else {
+                factoryHtml += `
+                <div class="machine-sprite empty-slot" onclick="window.openModal('shopModal')" data-tooltip="Купить новый станок">
+                    +
+                </div>`;
+            }
+        }
+        factoryHtml += `</div>`;
+        
+        if(game.equipment.length > 0) {
+             factoryHtml += `<div style="text-align:center; color:#7fa6c2; font-size: 1rem; margin-bottom:10px;">⚙️ Кликни по станку для настройки или ремонта.</div>`;
+        }
     }
     machinesDiv.innerHTML = factoryHtml;
 
+    // 5. ВКЛАДКА "СКЛАД"
     const storageDiv = document.getElementById('storageTab');
     const nonEmpty = Object.entries(game.storage).filter(([_, v]) => v > 0);
     if (nonEmpty.length === 0) {
         storageDiv.innerHTML = '<div style="text-align:center; margin-top: 20px;">🕸️ На складе гуляет ветер</div>';
     } else {
         storageDiv.innerHTML = nonEmpty.map(([type, amount]) => {
-            const cost = getRawMaterialCost(type);
-            return `<div class="storage-item"><span>${getProductName(type)}</span><span><strong style="font-size: 1.3rem;">📦 ${amount} шт</strong> <span style="color:#555; font-size:0.9rem;">(себест. ${cost} мон)</span></span></div>`;
+            const cost = typeof getRawMaterialCost === 'function' ? getRawMaterialCost(type) : BASE_COSTS[type];
+            return `<div class="storage-item">
+                <span>${getProductName(type)}</span>
+                <span><strong style="font-size: 1.3rem;">📦 ${amount} шт</strong> <span style="color:#555; font-size:0.9rem;">(себест. ${cost} мон)</span></span>
+            </div>`;
         }).join('');
     }
 
+    // 6. ВКЛАДКА "ЗАТРАТЫ"
     const costsDiv = document.getElementById('costsTab');
     if (game.equipment.length === 0) {
         costsDiv.innerHTML = '<div style="text-align:center; margin-top: 20px;">🕸️ Нет станков — нет затрат</div>';
     } else {
         let costsByType = {};
         let totalDailyCost = 0;
+        
         game.equipment.forEach(m => {
             if (m.health > 0) {
                 if (!costsByType[m.productType]) costsByType[m.productType] = { amount: 0, cost: 0 };
+                
                 const perf = m.performance || 1.0;
                 const currentOut = Math.floor((m.baseOutputPerDay || m.outputPerDay) * perf);
-                const dailyCost = currentOut * getRawMaterialCost(m.productType);
+                const dailyCost = currentOut * (typeof getRawMaterialCost === 'function' ? getRawMaterialCost(m.productType) : BASE_COSTS[m.productType]);
+                
                 costsByType[m.productType].amount += currentOut;
                 costsByType[m.productType].cost += dailyCost;
                 totalDailyCost += dailyCost;
@@ -203,29 +270,48 @@ window.render = function() {
         });
         
         let costsHtml = Object.entries(costsByType).map(([type, data]) => {
-            return `<div class="storage-item"><span>${getProductName(type)} <span style="color:#555; font-size:0.9rem;">(произв. ${data.amount} шт)</span></span><span><strong style="color: #c0392b;">-${data.cost} 💰</strong></span></div>`;
+            return `<div class="storage-item">
+                <span>${getProductName(type)} <span style="color:#555; font-size:0.9rem;">(произв. ${data.amount} шт)</span></span>
+                <span><strong style="color: #c0392b;">-${data.cost} 💰</strong></span>
+            </div>`;
         }).join('');
         
-        costsHtml += `<div class="storage-item" style="border-top: 3px solid #1e3c5a; margin-top: 10px; padding-top: 15px;"><span style="font-weight: 800; font-size: 1.2rem;">ИТОГО СЫРЬЕ ЗА ДЕНЬ:</span><span style="font-weight: 800; font-size: 1.3rem; color: #c0392b;">-${totalDailyCost} 💰</span></div>`;
+        costsHtml += `<div class="storage-item" style="border-top: 3px solid #1e3c5a; margin-top: 10px; padding-top: 15px;">
+            <span style="font-weight: 800; font-size: 1.2rem;">ИТОГО СЫРЬЕ ЗА ДЕНЬ:</span>
+            <span style="font-weight: 800; font-size: 1.3rem; color: #c0392b;">-${totalDailyCost} 💰</span>
+        </div>`;
+        
         costsDiv.innerHTML = costsHtml;
     }
 
+    // 7. КРЕДИТЫ (ФИНАНСЫ)
     const loansDiv = document.getElementById('activeLoansContainer');
     if (game.activeLoans.length === 0) {
         loansDiv.innerHTML = '<div>✅ Долгов нет</div>';
     } else {
         loansDiv.innerHTML = game.activeLoans.map(loan => {
-            return `<div class="loan-item"><span>💰 ${Math.round(loan.amount)} мон</span><span>⏳ ${loan.daysLeft} дн.</span></div>`;
+            return `<div class="loan-item">
+                <span>💰 ${Math.round(loan.amount)} мон</span>
+                <span>⏳ ${loan.daysLeft} дн.</span>
+            </div>`;
         }).join('');
     }
 
+    // Привязываем клик к кнопке взятия заказа
     document.querySelectorAll('.take-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => window.takeOrder(e.target.dataset.id));
+        const newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+        newBtn.addEventListener('click', (e) => {
+            if (typeof window.takeOrder === 'function') window.takeOrder(e.target.dataset.id);
+        });
     });
 
     window.saveGame();
 };
 
+// ==========================================
+// УПРАВЛЕНИЕ МОДАЛЬНЫМИ ОКНАМИ
+// ==========================================
 window.openModal = function(id) {
     document.getElementById(id).classList.add('active');
     if (id === 'shopModal') fillShopModal();
@@ -236,12 +322,47 @@ window.closeModal = function(id) {
     document.getElementById(id).classList.remove('active');
 };
 
+// --- ОКНО РЫНКА НЕДВИЖИМОСТИ ---
+window.openBuildingsModal = function() {
+    if (cheaterDetected) return;
+    const list = document.getElementById('buildingsList');
+    
+    list.innerHTML = STAGES.filter(s => s.level > 0).map(s => {
+        const isPurchased = game.stageLevel >= s.level;
+        const isNext = s.level === (game.stageLevel || 0) + 1;
+        
+        let btnHtml = '';
+        if (isPurchased) {
+            btnHtml = `<span style="font-weight:bold; color:#27ae60; font-size:1.2rem;">✅ Приобретено</span>`;
+        } else if (isNext) {
+            btnHtml = `<button onclick="window.buyBuilding(${s.level})" style="margin:0;">Купить за ${s.price} 💰</button>`;
+        } else {
+            btnHtml = `<button disabled style="background:#bdc3c7; box-shadow: 0 4px 0 #95a5a6; margin:0;">Сначала купите пред. уровень</button>`;
+        }
+
+        return `<div class="machine-shop-item" style="display:flex; gap:15px; align-items:center; ${isPurchased ? 'opacity: 0.6;' : ''}">
+            <div>
+                <img src="${s.img}" alt="${s.name}" style="display:block; width: 100px; height: 100px; object-fit: contain; background: #eef5fa; border-radius: 10px;">
+            </div>
+            <div style="flex-grow:1;">
+                <strong style="font-size:1.3rem;">${s.name}</strong><br>
+                <span style="color:#555;">Вместимость: ${s.maxMachines} станков | Аренда: ${s.rent} мон/день</span>
+            </div>
+            <div>${btnHtml}</div>
+        </div>`;
+    }).join('');
+    
+    document.getElementById('buildingsModal').classList.add('active');
+};
+
 function fillShopModal() {
     const list = document.getElementById('machineShopList');
     list.innerHTML = MACHINES.map(m => {
         const imgSrc = PRODUCT_TYPES[m.productType].img;
         return `<div class="machine-shop-item" style="display:flex; gap:15px; align-items:center;">
-            <div><img src="${imgSrc}" alt="${m.name}" style="display:block;"></div>
+            <div>
+                <img src="${imgSrc}" alt="${m.name}" style="display:block;">
+            </div>
             <div style="flex-grow:1;">
                 <strong>${m.name}</strong><br>
                 <span style="color:#555;">Мощность: ${m.outputPerDay}/день | Затраты: ${m.costPerItem} мон/шт</span><br>
@@ -256,7 +377,11 @@ function fillLoanModal() {
     const list = document.getElementById('loanOfferList');
     list.innerHTML = LOAN_OFFERS.map(offer => {
         return `<div class="loan-offer-item">
-            <div><strong>${offer.name}</strong><br>Ставка: ${offer.interestRate*100}% в день<br>Срок: ${offer.termDays} дней</div>
+            <div>
+                <strong>${offer.name}</strong><br>
+                Ставка: ${offer.interestRate*100}% в день<br>
+                Срок: ${offer.termDays} дней
+            </div>
             <button onclick="window.promptLoan('${offer.id}', ${offer.maxAmount})">Взять</button>
         </div>`;
     }).join('');
@@ -271,12 +396,13 @@ window.promptLoan = function(offerId, maxAmount) {
         window.showNotification('❌ Ошибка: Введена неверная сумма!');
         return;
     }
-    window.takeLoan(offerId, amount);
+    if (typeof window.takeLoan === 'function') window.takeLoan(offerId, amount);
 };
 
 window.openTaxModal = function() {
     if (cheaterDetected) return;
     const container = document.getElementById('taxChartContainer');
+    
     if (!game.taxHistory || game.taxHistory.length === 0) {
         container.innerHTML = '<div style="margin: auto; font-size: 1.5rem; color: #7fa6c2;">📊 Данные появятся в начале следующего месяца (на 31-й день)</div>';
     } else {
@@ -286,6 +412,7 @@ window.openTaxModal = function() {
             const taxPercent = h.income > 0 ? (h.tax / h.income) * 100 : 0;
             const netPercent = 100 - taxPercent;
             const taxLabel = h.tax > 0 ? `<span style="font-size: 0.8rem; font-weight: 900;">-${h.tax}</span>` : '';
+            
             return `
             <div class="chart-col" title="Месяц ${h.month}&#10;Заработано: ${h.income}💰&#10;Налог: ${h.tax}🔴">
                 <div style="font-weight: 800; font-size: 0.9rem; color: #1e3c5a; margin-bottom: 5px;">${h.income}</div>
@@ -344,6 +471,7 @@ window.openMachineModal = function(uid) {
 window.openUpgradesModal = function() {
     if (cheaterDetected) return;
     const list = document.getElementById('upgradesList');
+    
     list.innerHTML = UPGRADES.map(u => {
         const isPurchased = game.upgrades && game.upgrades.includes(u.id);
         return `<div class="upgrade-item ${isPurchased ? 'purchased' : ''}">
@@ -355,23 +483,26 @@ window.openUpgradesModal = function() {
             ${!isPurchased ? `<button onclick="window.buyUpgrade('${u.id}')">Купить</button>` : ''}
         </div>`;
     }).join('');
+    
     document.getElementById('upgradesModal').classList.add('active');
 };
 
-// --- ТУР ПО ИНТЕРФЕЙСУ ---
+// ==========================================
+// ОБУЧАЮЩИЙ ТУР
+// ==========================================
 const tourSteps = [
     { element: '.money', text: '💰 Здесь твои деньги. Зарабатывай их, выполняя заказы!' },
     { element: '.day', text: '📅 Каждый день нажимай кнопку "НОВЫЙ ДЕНЬ", чтобы производить товары и получать новые заказы.' },
-    { element: '.rating', text: '⭐ Рейтинг показывает, насколько успешно ты ведёшь дело. Растёт от прибыли и выполненных заказов.' },
-    { element: '#restartBtn', text: '🔄 Если долги тянут на дно, эта кнопка позволит сбросить прогресс и начать игру с чистого листа.' },
+    { element: '.rating', text: '⭐ Рейтинг показывает, насколько успешно ты ведёшь дело.' },
+    { element: '#restartBtn', text: '🔄 Если долги тянут на дно, эта кнопка позволит начать с чистого листа.' },
     { element: '#ordersContainer', text: '📋 Рынок и заказы. Следи за процентами рынка: если цена падает, лучше не брать заказы на этот товар!' },
-    { element: '#myOrdersContainer', text: '⏳ Взятые заказы. В первую очередь выполняются те заказы, у которых меньше всего дней до просрочки.' },
-    { element: '#tabMachines', text: '🏭 Вкладка "ЦЕХ". Нажимай на станки для настройки нагрузки, ремонта или продажи.' },
+    { element: '#myOrdersContainer', text: '⏳ Взятые заказы. Выполняются те заказы, у которых меньше всего дней до просрочки.' },
+    { element: '#tabMachines', text: '🏭 Вкладка "ЦЕХ". Здесь ты покупаешь станки и расширяешь здание. Нажимай на станки для настройки и ремонта.' },
     { element: '#tabStorage', text: '📦 Вкладка "СКЛАД" — здесь хранится готовая продукция и видна её себестоимость.' },
-    { element: '#tabCosts', text: '📉 Вкладка "ЗАТРАТЫ" показывает, какую сумму ежедневно съедает закупка сырья для твоих станков.' },
-    { element: '#activeLoansContainer', text: '🏦 Активные кредиты. Не бери больше двух сразу, иначе рейтинг упадёт.' },
-    { element: '#showTaxBtn', text: '📊 График "Доходы и Налоги". Помни: каждый 30-й день государство забирает 13% от твоих доходов за месяц!' },
-    { element: '#newDayBtn', text: '➡️ НОВЫЙ ДЕНЬ — платный. Запускает производство, списывает ежедневную плату и приносит заказы.' }
+    { element: '#tabCosts', text: '📉 Вкладка "ЗАТРАТЫ" показывает расходы на сырье.' },
+    { element: '#takeLoanBtn', text: '🏦 Банк. В самом начале игры тебе нужно взять кредит, чтобы купить гараж и свой первый станок!' },
+    { element: '#showTaxBtn', text: '📊 График налогов. Помни: каждый 30-й день государство забирает 13% от доходов.' },
+    { element: '#newDayBtn', text: '➡️ НОВЫЙ ДЕНЬ. Запускает производство, списывает арендную плату и приносит новые заказы.' }
 ];
 
 let currentTourStep = 0;
@@ -441,6 +572,9 @@ function updateHelpButtonAnimation() {
     }
 }
 
+// ==========================================
+// СОХРАНЕНИЕ И ЗАГРУЗКА ПРОГРЕССА
+// ==========================================
 function getSaveKey(name) { return 'little_entrepreneur_' + (name || 'default'); }
 
 window.saveGame = function() {
@@ -485,6 +619,7 @@ window.loadGame = function(name) {
             });
             if (!game.taxHistory) { game.taxHistory = []; game.monthlyIncome = 0; }
             if (!game.upgrades) game.upgrades = [];
+            if (game.stageLevel === undefined) game.stageLevel = 0; // Защита старых сохранений
         } catch (e) { game = null; }
     }
     
@@ -495,16 +630,22 @@ window.loadGame = function(name) {
             equipment: [], storage: { toy: 0, furniture: 0, food: 0 }, activeLoans: [],
             myOrders: [], availableOrders: [], completedOrders: 0, failedOrders: 0,
             playerName: name, market: { toy: 1.0, furniture: 1.0, food: 1.0 },
-            monthlyIncome: 0, taxHistory: [], upgrades: []
+            monthlyIncome: 0, taxHistory: [], upgrades: [], stageLevel: 0 // Уровень 0 = Нет здания
         };
-        for (let i = 0; i < 3; i++) game.availableOrders.push(generateRandomOrder());
+        // Первые заказы
+        if (typeof generateRandomOrder === 'function') {
+            for (let i = 0; i < 3; i++) game.availableOrders.push(generateRandomOrder());
+        }
     }
+    
     if (!game.market) game.market = { toy: 1.0, furniture: 1.0, food: 1.0 };
     if (game.monthlyIncome === undefined) { game.monthlyIncome = 0; game.taxHistory = []; }
     if (!game.upgrades) game.upgrades = [];
+    if (game.stageLevel === undefined) game.stageLevel = 0; 
 
     document.getElementById('playerNameDisplay').innerText = game.playerName;
     document.getElementById('loginModal').classList.remove('active');
+    
     window.render();
     updateHelpButtonAnimation();
 
@@ -515,7 +656,8 @@ window.loadGame = function(name) {
 
 window.restartGame = function() {
     if (!game || !game.playerName) return;
-    const isConfirmed = confirm(`🚨 ВНИМАНИЕ!\n\nВы уверены, что хотите начать игру с самого начала? \nВсе ваши деньги, станки и рейтинг будут навсегда удалены!`);
+    const isConfirmed = confirm(`🚨 ВНИМАНИЕ!\n\nВы уверены, что хотите начать игру с самого начала? \nВсе ваши деньги, здания, станки и рейтинг будут навсегда удалены!`);
+    
     if (isConfirmed) {
         const currentName = game.playerName;
         localStorage.removeItem(getSaveKey(currentName)); 
@@ -526,43 +668,60 @@ window.restartGame = function() {
     }
 };
 
-// --- ИНИЦИАЛИЗАЦИЯ И СЛУШАТЕЛИ СОБЫТИЙ ---
+// ==========================================
+// ИНИЦИАЛИЗАЦИЯ И СЛУШАТЕЛИ СОБЫТИЙ ПРИ ЗАГРУЗКЕ
+// ==========================================
 document.addEventListener("DOMContentLoaded", () => {
     window.loadProfileList();
 
+    // 1. Окно входа
     document.getElementById('loginBtn').addEventListener('click', () => {
         const selected = document.getElementById('profileSelect').value;
-        if (selected) window.loadGame(selected); else alert('Выберите профиль из списка!');
+        if (selected) { window.loadGame(selected); } 
+        else { alert('Сначала выберите профиль из списка!'); }
     });
 
     document.getElementById('newGameBtn').addEventListener('click', () => {
         const newName = document.getElementById('newPlayerName').value.trim();
         if (newName) {
-            if (localStorage.getItem(getSaveKey(newName))) alert('⚠️ Игрок с таким именем уже существует!');
-            else window.loadGame(newName);
-        } else alert('Введите ваше имя!');
+            if (localStorage.getItem(getSaveKey(newName))) {
+                alert('⚠️ Игрок с таким именем уже существует! Выберите его в верхнем списке или придумайте другое имя.');
+            } else { window.loadGame(newName); }
+        } else { alert('Пожалуйста, введите ваше имя!'); }
     });
 
+    // 2. Модальные окна (базовые)
     document.getElementById('closeNotificationBtn').addEventListener('click', window.closeNotification);
     document.getElementById('closeShopModal').addEventListener('click', () => window.closeModal('shopModal'));
     document.getElementById('closeLoanModal').addEventListener('click', () => window.closeModal('loanModal'));
     
-    if (document.getElementById('closeMachineModal')) {
-        document.getElementById('closeMachineModal').addEventListener('click', () => window.closeModal('machineModal'));
-        document.getElementById('machineModalRepairBtn').addEventListener('click', window.repairMachineFromModal);
-        document.getElementById('machineModalSellBtn').addEventListener('click', window.sellMachine);
+    // Новое окно зданий
+    if (document.getElementById('closeBuildingsModal')) {
+        document.getElementById('closeBuildingsModal').addEventListener('click', () => window.closeModal('buildingsModal'));
     }
     
+    // Окно управления станком
+    if (document.getElementById('closeMachineModal')) {
+        document.getElementById('closeMachineModal').addEventListener('click', () => window.closeModal('machineModal'));
+        document.getElementById('machineModalRepairBtn').addEventListener('click', () => {
+            if (typeof window.repairMachineFromModal === 'function') window.repairMachineFromModal();
+        });
+        document.getElementById('machineModalSellBtn').addEventListener('click', () => {
+            if (typeof window.sellMachine === 'function') window.sellMachine();
+        });
+    }
+    
+    // Налоги и улучшения
     if (document.getElementById('showTaxBtn')) {
         document.getElementById('showTaxBtn').addEventListener('click', window.openTaxModal);
         document.getElementById('closeTaxModal').addEventListener('click', () => window.closeModal('taxModal'));
     }
-
     if (document.getElementById('openUpgradesBtn')) {
         document.getElementById('openUpgradesBtn').addEventListener('click', window.openUpgradesModal);
         document.getElementById('closeUpgradesModal').addEventListener('click', () => window.closeModal('upgradesModal'));
     }
 
+    // 3. Вкладки (Цех, Склад, Затраты)
     const tabs = ['Machines', 'Storage', 'Costs'];
     tabs.forEach(tabName => {
         const btn = document.getElementById('tab' + tabName);
@@ -580,15 +739,24 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    if (document.getElementById('restartBtn')) document.getElementById('restartBtn').addEventListener('click', window.restartGame);
+    // 4. Глобальные действия (Рестарт, Кредит, Новый день)
+    if (document.getElementById('restartBtn')) {
+        document.getElementById('restartBtn').addEventListener('click', window.restartGame);
+    }
     document.getElementById('takeLoanBtn').addEventListener('click', () => window.openModal('loanModal'));
-    document.getElementById('newDayBtn').addEventListener('click', window.nextDay);
+    document.getElementById('newDayBtn').addEventListener('click', () => {
+        if (typeof window.nextDay === 'function') window.nextDay();
+    });
     
+    // 5. Обучающий тур
     document.getElementById('helpBtn').addEventListener('click', window.startTour);
     document.getElementById('tourNext').addEventListener('click', () => {
         currentTourStep++;
-        if (currentTourStep < tourSteps.length) updateTourHighlight(); else window.endTour();
+        if (currentTourStep < tourSteps.length) updateTourHighlight(); 
+        else window.endTour();
     });
     document.getElementById('tourSkip').addEventListener('click', window.endTour);
-    window.addEventListener('resize', () => { if (document.getElementById('tourOverlay').classList.contains('active')) updateTourHighlight(); });
+    window.addEventListener('resize', () => {
+        if (document.getElementById('tourOverlay').classList.contains('active')) updateTourHighlight();
+    });
 });

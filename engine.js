@@ -6,7 +6,11 @@ function getDailyCost() {
     if (!game) return DAILY_COST;
     let base = DAILY_COST;
     let machinesCost = game.equipment.length * 15; 
-    let total = base + machinesCost;
+    
+    // + Аренда текущего здания
+    let stageRent = STAGES[game.stageLevel || 0].rent; 
+    
+    let total = base + machinesCost + stageRent;
     if (game.upgrades && game.upgrades.includes('logistics')) {
         total = Math.floor(total * 0.9);
     }
@@ -172,6 +176,14 @@ window.cancelOrder = function(orderId) {
 
 window.buyMachine = function(machineId) {
     if (cheaterDetected) return;
+    // --- ПРОВЕРКА ЛИМИТА ПОМЕЩЕНИЯ ---
+    const currentStage = STAGES[game.stageLevel || 0];
+    if (game.equipment.length >= currentStage.maxMachines) {
+        window.showNotification(`🏢 Нет места!\n\nВаше здание (${currentStage.name}) вмещает максимум ${currentStage.maxMachines} станка.\nКупите новое помещение во вкладке "ЦЕХ".`);
+        return;
+    }
+    // --- КОНЕЦ ПРОВЕРКИ ---
+
     const machineTemplate = MACHINES.find(m => m.id === machineId);
     if (!machineTemplate) return;
     if (game.cash < machineTemplate.price) {
@@ -190,6 +202,50 @@ window.buyMachine = function(machineId) {
     window.showNotification(`✨ Отлично! На фабрику установлен ${machineTemplate.name}`);
     window.render();
     window.closeModal('shopModal');
+};
+
+// --- ПОКУПКА ЗДАНИЯ ---
+window.buyBuilding = function(level) {
+    if (cheaterDetected) return;
+    const stage = STAGES.find(s => s.level === level);
+    if (!stage) return;
+    
+    if (game.cash < stage.price) {
+        window.showNotification(`💰 Недостаточно денег на счету! Нужно ${stage.price} монет.`);
+        return;
+    }
+    
+    game.cash -= stage.price;
+    game.stageLevel = level;
+    
+    window.showNotification(`🎉 Поздравляем с переездом!\n\nВы приобрели "${stage.name}".\nЛимит станков: ${stage.maxMachines} шт.`);
+    window.render();
+    window.closeModal('buildingsModal');
+};
+
+window.upgradeBuilding = function() {
+    if (cheaterDetected) return;
+    const level = game.stageLevel || 0;
+    const currentStage = STAGES[level];
+    
+    if (currentStage.upgradeCost === null) {
+        window.showNotification('🏢 У вас уже самое современное производство!');
+        return;
+    }
+    
+    if (game.cash < currentStage.upgradeCost) {
+        window.showNotification(`💰 Не хватает денег на расширение! Нужно ${currentStage.upgradeCost} монет.`);
+        return;
+    }
+    
+    const confirmUpgrade = confirm(`Вы хотите переехать в новое здание?\n\nСтоимость переезда: ${currentStage.upgradeCost} монет.\nАренда возрастет до ${STAGES[level+1].rent} монет в день.`);
+    
+    if (confirmUpgrade) {
+        game.cash -= currentStage.upgradeCost;
+        game.stageLevel = level + 1;
+        window.showNotification(`🎉 Поздравляем!\n\nВы переехали в ${STAGES[game.stageLevel].name}! Теперь у вас больше места для станков.`);
+        window.render();
+    }
 };
 
 window.repairMachineFromModal = function() {

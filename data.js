@@ -3,6 +3,33 @@ const BASE_PRICES = { toy: 25, furniture: 70, food: 15 };
 const BASE_COSTS = { toy: 10, furniture: 30, food: 4 };
 const DAILY_COST = 30;
 
+// --- ЭВОЛЮЦИЯ ЗДАНИЙ ---
+const STAGES = [
+    { 
+        level: 0, id: 'street', name: 'Улица', 
+        maxMachines: 0, rent: 0, price: 0, 
+        img: '', bodyBg: '#c8e6f0', wrapBg: '#fefdf6' 
+    },
+    { 
+        level: 1, id: 'garage', name: '📦 Гараж', 
+        maxMachines: 1, rent: 0, price: 200, 
+        img: 'https://raw.githubusercontent.com/godspace/business/main/BUTTONS/building_01_button.png', 
+        bodyBg: '#c8e6f0', wrapBg: '#fefdf6' 
+    },
+    { 
+        level: 2, id: 'workshop', name: '🏗️ Арендованный Цех', 
+        maxMachines: 3, rent: 50, price: 5000, 
+        img: 'https://raw.githubusercontent.com/godspace/business/main/BUTTONS/building_02_button.png', 
+        bodyBg: '#d0d8e0', wrapBg: '#f4f6f9' 
+    },
+    { 
+        level: 3, id: 'factory', name: '🏭 Собственный Завод', 
+        maxMachines: 10, rent: 200, price: 25000, 
+        img: 'https://raw.githubusercontent.com/godspace/business/main/BUTTONS/building_03_button.png', 
+        bodyBg: '#b0c4de', wrapBg: '#e8edf1' 
+    }
+];
+
 const UPGRADES = [
     { id: 'marketing', name: '📢 Бренд-менеджмент', desc: 'Все новые заказы стоят на 15% дороже', price: 2000 },
     { id: 'maintenance', name: '🛠️ Качественное масло', desc: 'Станки изнашиваются на 25% медленнее', price: 1500 },
