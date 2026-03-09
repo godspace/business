@@ -56,10 +56,11 @@
                 <div id="activeLoansContainer" style="margin-bottom:15px;"></div>
                 <div class="action-button" id="takeLoanBtn">💳 Взять кредит</div>
                 <div class="action-button" id="showTaxBtn" style="background: #e0f0c8; border-color: #a6c27f; box-shadow: 0 6px 0 #89a661; margin-top: 15px;">📊 Доходы и Налоги</div>
+                <div class="action-button" id="openUpgradesBtn" style="background: #f0d8c8; border-color: #c2a67f; box-shadow: 0 6px 0 #a68961; margin-top: 15px;">🚀 Улучшения</div>
             </div>
         </div>
 
-        <div class="daily-cost-indicator">💰 Плата за день: 30 монет</div>
+        <div class="daily-cost-indicator" id="dailyCostIndicator">💰 Плата за день: 30 монет</div>
         <div class="new-day-btn" id="newDayBtn">➡️ НОВЫЙ ДЕНЬ</div>
     </div>
 
@@ -144,6 +145,15 @@
         </div>
     </div>
 
+    <div id="upgradesModal" class="modal">
+        <div class="modal-content" style="max-width: 650px;">
+            <h3>🚀 Отдел Улучшений</h3>
+            <p style="margin-bottom: 20px; color: #555;">Инвестируйте в развитие фабрики, чтобы получить постоянные бонусы.</p>
+            <div id="upgradesList"></div>
+            <button class="close-modal" id="closeUpgradesModal">Закрыть</button>
+        </div>
+    </div>
+    
     <div class="tour-overlay" id="tourOverlay"></div>
     <div class="tour-highlight" id="tourHighlight"></div>
     <div class="tour-tooltip" id="tourTooltip">
@@ -154,6 +164,9 @@
         </div>
     </div>
 
-    <script src="game.js"></script>
+    <script src="data.js"></script>
+    <script src="engine.js"></script>
+    <script src="ui.js"></script>
+    <script src="firebase.js"></script>
 </body>
 </html>
