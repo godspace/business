@@ -797,9 +797,16 @@
     const tourSteps = [
         { element: '.money', text: '💰 Здесь твои деньги. Зарабатывай их, выполняя заказы!' },
         { element: '.day', text: '📅 Каждый день нажимай кнопку "НОВЫЙ ДЕНЬ", чтобы производить товары и получать новые заказы.' },
-        { element: '.rating', text: '⭐ Рейтинг показывает, насколько успешно ты ведёшь дело.' },
-        { element: '#ordersContainer', text: '📋 Рынок и заказы. Следи за процентами рынка!' },
-        { element: '#tabMachines', text: '🏭 Вкладка "ЦЕХ". Нажимай на станки для настройки, ремонта или продажи.' }
+        { element: '.rating', text: '⭐ Рейтинг показывает, насколько успешно ты ведёшь дело. Растёт от прибыли и выполненных заказов.' },
+        { element: '#restartBtn', text: '🔄 Если долги тянут на дно, эта кнопка позволит сбросить прогресс и начать игру с чистого листа.' },
+        { element: '#ordersContainer', text: '📋 Рынок и заказы. Следи за процентами рынка: если цена падает, лучше не брать заказы на этот товар!' },
+        { element: '#myOrdersContainer', text: '⏳ Взятые заказы. В первую очередь выполняются те заказы, у которых меньше всего дней до просрочки.' },
+        { element: '#tabMachines', text: '🏭 Вкладка "ЦЕХ". Нажимай на станки для настройки нагрузки, ремонта или продажи.' },
+        { element: '#tabStorage', text: '📦 Вкладка "СКЛАД" — здесь хранится готовая продукция и видна её себестоимость.' },
+        { element: '#tabCosts', text: '📉 Вкладка "ЗАТРАТЫ" показывает, какую сумму ежедневно съедает закупка сырья для твоих станков.' },
+        { element: '#activeLoansContainer', text: '🏦 Активные кредиты. Не бери больше двух сразу, иначе рейтинг упадёт.' },
+        { element: '#showTaxBtn', text: '📊 График "Доходы и Налоги". Помни: каждый 30-й день государство забирает 13% от твоих доходов за месяц!' },
+        { element: '#newDayBtn', text: '➡️ НОВЫЙ ДЕНЬ — платный (30 монет). Запускает производство, начисляет штрафы за минус на счету и приносит новые заказы.' }
     ];
 
     let currentTourStep = 0;
@@ -890,6 +897,8 @@
 
     function loadGame(name) {
         if (!name) return;
+        let isNewPlayer = false; // Флаг для проверки, новичок ли это
+        
         const saved = localStorage.getItem(getSaveKey(name));
         if (saved) {
             try {
@@ -897,14 +906,15 @@
                 game = parsed;
                 game.equipment.forEach((m, index) => {
                     if (!m.uid) m.uid = m.id + '_' + Date.now() + '_' + index;
-                    // Миграция старых сохранений
                     if (!m.baseOutputPerDay) m.baseOutputPerDay = m.outputPerDay;
                     if (!m.performance) m.performance = 1.0;
                 });
                 if (!game.taxHistory) { game.taxHistory = []; game.monthlyIncome = 0; }
             } catch (e) { game = null; }
         }
+        
         if (!game) {
+            isNewPlayer = true; // Сохранений нет — создаем новую игру
             game = {
                 day: 1, cash: 0, rating: 0,
                 equipment: [], storage: { toy: 0, furniture: 0, food: 0 }, activeLoans: [],
@@ -921,27 +931,62 @@
         document.getElementById('loginModal').classList.remove('active');
         render();
         updateHelpButtonAnimation();
+
+        // Если это новая игра, автоматически запускаем тур с небольшой задержкой
+        if (isNewPlayer) {
+            setTimeout(() => {
+                startTour();
+            }, 500);
+        }
     }
+
+    // --- ФУНКЦИЯ ПОЛНОГО ПЕРЕЗАПУСКА (СБРОСА) ---
+    window.restartGame = function() {
+        if (!game || !game.playerName) return;
+        
+        // Запрашиваем подтверждение через встроенное окно браузера
+        const isConfirmed = confirm(`🚨 ВНИМАНИЕ!\n\nВы уверены, что хотите начать игру с самого начала? \nВсе ваши деньги, станки и рейтинг будут навсегда удалены!`);
+        
+        if (isConfirmed) {
+            const currentName = game.playerName;
+            localStorage.removeItem(getSaveKey(currentName)); // Удаляем сохранение
+            localStorage.removeItem('tourShown_' + currentName); // Сбрасываем флаг тура
+            game = null; // Очищаем память
+            loadGame(currentName); // Загружаем заново (создастся чистый профиль)
+            showNotification('🔄 Игра начата с чистого листа. Удачи, предприниматель!');
+        }
+    };
 
     loadProfileList();
 
+    // Обновленная логика кнопок входа
     document.getElementById('loginBtn').addEventListener('click', () => {
         const selected = document.getElementById('profileSelect').value;
-        if (selected) loadGame(selected);
-        else alert('Выберите профиль');
+        if (selected) {
+            loadGame(selected);
+        } else {
+            alert('Сначала выберите профиль из списка!');
+        }
     });
 
     document.getElementById('newGameBtn').addEventListener('click', () => {
         const newName = document.getElementById('newPlayerName').value.trim();
-        if (newName) loadGame(newName);
-        else alert('Введите имя');
+        if (newName) {
+            // Защита от перезаписи: проверяем, нет ли уже такого имени
+            if (localStorage.getItem(getSaveKey(newName))) {
+                alert('⚠️ Игрок с таким именем уже существует! Выберите его в верхнем списке или придумайте другое имя.');
+            } else {
+                loadGame(newName);
+            }
+        } else {
+            alert('Пожалуйста, введите ваше имя!');
+        }
     });
 
     document.getElementById('closeNotificationBtn').addEventListener('click', closeNotification);
     document.getElementById('closeShopModal').addEventListener('click', () => closeModal('shopModal'));
     document.getElementById('closeLoanModal').addEventListener('click', () => closeModal('loanModal'));
     
-    // Новые обработчики для модального окна станка
     if (document.getElementById('closeMachineModal')) {
         document.getElementById('closeMachineModal').addEventListener('click', () => closeModal('machineModal'));
         document.getElementById('machineModalRepairBtn').addEventListener('click', window.repairMachineFromModal);
@@ -969,6 +1014,11 @@
             });
         }
     });
+
+    // Привязываем кнопку перезапуска
+    if (document.getElementById('restartBtn')) {
+        document.getElementById('restartBtn').addEventListener('click', window.restartGame);
+    }
 
     document.getElementById('takeLoanBtn').addEventListener('click', () => window.openModal('loanModal'));
     document.getElementById('newDayBtn').addEventListener('click', nextDay);
