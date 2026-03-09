@@ -4,7 +4,6 @@
 window.currentMachineUid = null; 
 let notificationQueue = [];
 let notificationModalActive = false;
-let cheaterDetected = false;
 
 // ==========================================
 // АНТИЧИТ И ЗАЩИТА
