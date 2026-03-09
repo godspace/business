@@ -149,9 +149,24 @@ window.render = function() {
     let factoryHtml = '';
     const currentStage = STAGES[game.stageLevel || 0];
 
-    // Меняем цвета сайта в зависимости от уровня здания
-    document.body.style.background = currentStage.bodyBg;
-    document.getElementById('gameWrapper').style.background = currentStage.wrapBg;
+    // --- ДИНАМИЧЕСКАЯ СМЕНА ЦВЕТОВОЙ ТЕМЫ ---
+    let styleTag = document.getElementById('dynamic-theme');
+    if (!styleTag) {
+        styleTag = document.createElement('style');
+        styleTag.id = 'dynamic-theme';
+        document.head.appendChild(styleTag);
+    }
+    // Внедряем CSS-перекраску для всех элементов игры с плавной анимацией
+    styleTag.innerHTML = `
+        body { background: ${currentStage.theme.bodyBg} !important; transition: background 0.8s ease; }
+        #gameWrapper { background: ${currentStage.theme.wrapBg} !important; box-shadow: 0 10px 30px ${currentStage.theme.shadow} !important; transition: background 0.8s ease, box-shadow 0.8s ease; }
+        h2 { color: ${currentStage.theme.text} !important; border-bottom-color: ${currentStage.theme.border} !important; transition: 0.8s ease; }
+        .order-card { background: ${currentStage.theme.panelBg} !important; border-color: ${currentStage.theme.border} !important; transition: 0.5s ease; }
+        .tab-content { background: ${currentStage.theme.panelBg} !important; border-color: ${currentStage.theme.border} !important; transition: 0.5s ease; }
+        .tab.active { background: ${currentStage.theme.panelBg} !important; border-color: ${currentStage.theme.border} !important; border-bottom-color: ${currentStage.theme.panelBg} !important; color: ${currentStage.theme.text} !important; transition: 0.5s ease; }
+        .storage-item { border-bottom-color: ${currentStage.theme.border} !important; }
+        .loan-item { border-left-color: ${currentStage.theme.border} !important; background: ${currentStage.theme.panelBg} !important; }
+    `;
 
     // --- ЕСЛИ ЗДАНИЯ НЕТ (УРОВЕНЬ 0) ---
     if ((game.stageLevel || 0) === 0) {
@@ -164,11 +179,12 @@ window.render = function() {
     } 
     // --- ЕСЛИ ЗДАНИЕ ЕСТЬ (УРОВЕНЬ 1+) ---
     else {
-        factoryHtml += `<div style="background: #e1f0fa; border: 2px solid #b4c9db; border-radius: 20px; padding: 15px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+        // Панель здания теперь перекрашивается сама
+        factoryHtml += `<div style="background: ${currentStage.theme.panelBg}; border: 2px solid ${currentStage.theme.border}; border-radius: 20px; padding: 15px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; transition: 0.5s ease;">
             <div style="display: flex; gap: 15px; align-items: center;">
-                <img src="${currentStage.img}" style="width: 80px; height: 80px; object-fit: contain; background: white; border-radius: 10px; border: 2px solid #b4c9db;">
+                <img src="${currentStage.img}" style="width: 80px; height: 80px; object-fit: contain; background: ${currentStage.theme.wrapBg}; border-radius: 10px; border: 2px solid ${currentStage.theme.border};">
                 <div>
-                    <div style="font-size: 1.4rem; font-weight: 800; color: #1e3c5a;">${currentStage.name}</div>
+                    <div style="font-size: 1.4rem; font-weight: 800; color: ${currentStage.theme.text};">${currentStage.name}</div>
                     <div style="color: #555; font-size: 1rem;">Аренда: ${currentStage.rent} 💰/день | Мест: ${game.equipment.length} / ${currentStage.maxMachines}</div>
                 </div>
             </div>
@@ -193,7 +209,7 @@ window.render = function() {
             factoryHtml += '</div>';
         }
 
-        // Сетка станков (Ограничена текущим зданием)
+        // Сетка станков
         factoryHtml += `<div class="factory-grid">`;
         const totalSlots = currentStage.maxMachines; 
 
@@ -207,9 +223,9 @@ window.render = function() {
                 
                 factoryHtml += `
                 <div class="machine-sprite ${isCritical ? 'needs-repair' : ''}" 
-                     data-uid="${m.uid}" 
-                     data-tooltip="${tooltip}" 
-                     onclick="window.openMachineModal('${m.uid}')">
+                    data-uid="${m.uid}" 
+                    data-tooltip="${tooltip}" 
+                    onclick="window.openMachineModal('${m.uid}')">
                     <div class="machine-smoke">💨</div>
                     <img src="${PRODUCT_TYPES[m.productType].img}" style="width: 100%; height: 100%; object-fit: contain; padding: 10px; pointer-events: none;" alt="Станок">
                     <div class="machine-health-mini">
@@ -226,7 +242,7 @@ window.render = function() {
         factoryHtml += `</div>`;
         
         if(game.equipment.length > 0) {
-             factoryHtml += `<div style="text-align:center; color:#7fa6c2; font-size: 1rem; margin-bottom:10px;">⚙️ Кликни по станку для настройки или ремонта.</div>`;
+            factoryHtml += `<div style="text-align:center; color:#7fa6c2; font-size: 1rem; margin-bottom:10px;">⚙️ Кликни по станку для настройки или ремонта.</div>`;
         }
     }
     machinesDiv.innerHTML = factoryHtml;
@@ -325,7 +341,7 @@ window.closeModal = function(id) {
 window.openBuildingsModal = function() {
     if (cheaterDetected) return;
     const list = document.getElementById('buildingsList');
-    
+    // Замените блок формирования list.innerHTML внутри window.openBuildingsModal
     list.innerHTML = STAGES.filter(s => s.level > 0).map(s => {
         const isPurchased = game.stageLevel >= s.level;
         const isNext = s.level === (game.stageLevel || 0) + 1;
@@ -339,12 +355,12 @@ window.openBuildingsModal = function() {
             btnHtml = `<button disabled style="background:#bdc3c7; box-shadow: 0 4px 0 #95a5a6; margin:0;">Сначала купите пред. уровень</button>`;
         }
 
-        return `<div class="machine-shop-item" style="display:flex; gap:15px; align-items:center; ${isPurchased ? 'opacity: 0.6;' : ''}">
+        return `<div class="machine-shop-item" style="display:flex; gap:15px; align-items:center; ${isPurchased ? 'opacity: 0.6;' : ''} background: ${s.theme.wrapBg} !important; border-color: ${s.theme.border} !important;">
             <div>
-                <img src="${s.img}" alt="${s.name}" style="display:block; width: 100px; height: 100px; object-fit: contain; background: #eef5fa; border-radius: 10px;">
+                <img src="${s.img}" alt="${s.name}" style="display:block; width: 100px; height: 100px; object-fit: contain; background: ${s.theme.panelBg}; border-radius: 10px; border: 2px solid ${s.theme.border};">
             </div>
             <div style="flex-grow:1;">
-                <strong style="font-size:1.3rem;">${s.name}</strong><br>
+                <strong style="font-size:1.3rem; color: ${s.theme.text};">${s.name}</strong><br>
                 <span style="color:#555;">Вместимость: ${s.maxMachines} станков | Аренда: ${s.rent} мон/день</span>
             </div>
             <div>${btnHtml}</div>
@@ -490,18 +506,18 @@ window.openUpgradesModal = function() {
 // ОБУЧАЮЩИЙ ТУР
 // ==========================================
 const tourSteps = [
-    { element: '.money', text: '💰 Здесь твои деньги. Зарабатывай их, выполняя заказы!' },
-    { element: '.day', text: '📅 Каждый день нажимай кнопку "НОВЫЙ ДЕНЬ", чтобы производить товары и получать новые заказы.' },
-    { element: '.rating', text: '⭐ Рейтинг показывает, насколько успешно ты ведёшь дело.' },
-    { element: '#restartBtn', text: '🔄 Если долги тянут на дно, эта кнопка позволит начать с чистого листа.' },
-    { element: '#ordersContainer', text: '📋 Рынок и заказы. Следи за процентами рынка: если цена падает, лучше не брать заказы на этот товар!' },
-    { element: '#myOrdersContainer', text: '⏳ Взятые заказы. Выполняются те заказы, у которых меньше всего дней до просрочки.' },
-    { element: '#tabMachines', text: '🏭 Вкладка "ЦЕХ". Здесь ты покупаешь станки и расширяешь здание. Нажимай на станки для настройки и ремонта.' },
-    { element: '#tabStorage', text: '📦 Вкладка "СКЛАД" — здесь хранится готовая продукция и видна её себестоимость.' },
-    { element: '#tabCosts', text: '📉 Вкладка "ЗАТРАТЫ" показывает расходы на сырье.' },
-    { element: '#takeLoanBtn', text: '🏦 Банк. В самом начале игры тебе нужно взять кредит, чтобы купить гараж и свой первый станок!' },
-    { element: '#showTaxBtn', text: '📊 График налогов. Помни: каждый 30-й день государство забирает 13% от доходов.' },
-    { element: '#newDayBtn', text: '➡️ НОВЫЙ ДЕНЬ. Запускает производство, списывает арендную плату и приносит новые заказы.' }
+    { element: '.money', text: '💰 Твой капитал. Зарабатывай деньги, выполняя заказы, но следи за расходами!' },
+    { element: '#takeLoanBtn', text: '🏦 Банк. На старте у тебя 0 монет и нет помещения. Возьми "Средний кредит", чтобы начать бизнес!' },
+    { element: '#tabMachines', text: '🏭 Вкладка "ЦЕХ". Зайди на "Рынок недвижимости" и купи Гараж. Только после этого ты сможешь купить свой первый станок.' },
+    { element: '#ordersContainer', text: '📋 Рынок и заказы. Внимательно следи за ценами! Если спрос падает, заказы становятся дешевле.' },
+    { element: '#myOrdersContainer', text: '⏳ Твои заказы. Отсюда товары уходят клиентам. Если станок сломался и ты не успеваешь — заказ можно отменить (с уплатой неустойки).' },
+    { element: '#tabStorage', text: '📦 Вкладка "СКЛАД". Здесь копится произведенная продукция, если для нее пока нет подходящих заказов.' },
+    { element: '#tabCosts', text: '📉 Вкладка "ЗАТРАТЫ". Показывает, какую сумму ежедневно съедает закупка сырья.' },
+    { element: '#openUpgradesBtn', text: '🚀 Улучшения. Когда накопишь капитал, инвестируй в логистику, масло или бренд, чтобы получать мощные бонусы.' },
+    { element: '#showTaxBtn', text: '📊 Налоги. Помни: каждый 30-й день государство забирает 13% от всех заработанных за месяц денег.' },
+    { element: '#dailyCostIndicator', text: '💸 Плата за день. Чем больше станков и чем круче здание — тем выше аренда и траты на обслуживание!' },
+    { element: '#newDayBtn', text: '➡️ НОВЫЙ ДЕНЬ. Запускает производство, списывает ежедневную плату и приносит новые заказы.' },
+    { element: '#restartBtn', text: '🔄 Если бизнес окончательно прогорел и коллекторы стучат в дверь, эта кнопка позволит начать игру заново.' }
 ];
 
 let currentTourStep = 0;

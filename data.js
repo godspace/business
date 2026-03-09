@@ -3,30 +3,34 @@ const BASE_PRICES = { toy: 25, furniture: 70, food: 15 };
 const BASE_COSTS = { toy: 10, furniture: 30, food: 4 };
 const DAILY_COST = 30;
 
-// --- ЭВОЛЮЦИЯ ЗДАНИЙ ---
+// --- ЭВОЛЮЦИЯ ЗДАНИЙ И ЯРКИЕ ЦВЕТОВЫЕ ТЕМЫ ---
 const STAGES = [
     { 
         level: 0, id: 'street', name: 'Улица', 
-        maxMachines: 0, rent: 0, price: 0, 
-        img: '', bodyBg: '#c8e6f0', wrapBg: '#fefdf6' 
+        maxMachines: 0, rent: 0, price: 0, img: '', 
+        // Асфальт и серость. Чувство "начинаю с нуля на обочине"
+        theme: { bodyBg: '#7f8c8d', wrapBg: '#f5f7f8', panelBg: '#e8ecef', border: '#bdc3c7', text: '#2c3e50', shadow: 'rgba(0,0,0,0.2)' }
     },
     { 
         level: 1, id: 'garage', name: '📦 Гараж', 
         maxMachines: 1, rent: 0, price: 200, 
         img: 'https://raw.githubusercontent.com/godspace/business/main/BUTTONS/building_01_button.png', 
-        bodyBg: '#c8e6f0', wrapBg: '#fefdf6' 
+        // Теплые древесные, картонные оттенки. Уютный стартап.
+        theme: { bodyBg: '#e3b795', wrapBg: '#fdf8f4', panelBg: '#f9ecd8', border: '#d4a373', text: '#5e3a21', shadow: 'rgba(139, 69, 19, 0.15)' }
     },
     { 
         level: 2, id: 'workshop', name: '🏗️ Арендованный Цех', 
         maxMachines: 3, rent: 50, price: 5000, 
         img: 'https://raw.githubusercontent.com/godspace/business/main/BUTTONS/building_02_button.png', 
-        bodyBg: '#d0d8e0', wrapBg: '#f4f6f9' 
+        // Индустриальный мятно-бетонный. Просторное рабочее помещение.
+        theme: { bodyBg: '#8cbab0', wrapBg: '#f2fafa', panelBg: '#e0f2ec', border: '#5c968a', text: '#194d40', shadow: 'rgba(25, 77, 64, 0.15)' }
     },
     { 
         level: 3, id: 'factory', name: '🏭 Собственный Завод', 
         maxMachines: 10, rent: 200, price: 25000, 
         img: 'https://raw.githubusercontent.com/godspace/business/main/BUTTONS/building_03_button.png', 
-        bodyBg: '#b0c4de', wrapBg: '#e8edf1' 
+        // Премиальный темно-синий фон "корпорации" с контрастными светлыми панелями. Элита.
+        theme: { bodyBg: '#192a56', wrapBg: '#f0f5fa', panelBg: '#e1eaf2', border: '#273c75', text: '#192a56', shadow: 'rgba(0, 168, 255, 0.3)' }
     }
 ];
 
