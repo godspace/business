@@ -156,10 +156,17 @@ window.render = function() {
         styleTag.id = 'dynamic-theme';
         document.head.appendChild(styleTag);
     }
-    // Внедряем CSS-перекраску для всех элементов игры с плавной анимацией
+    // Внедряем CSS-перекраску и фоновые изображения
     styleTag.innerHTML = `
-        body { background: ${currentStage.theme.bodyBg} !important; transition: background 0.8s ease; }
-        #gameWrapper { background: ${currentStage.theme.wrapBg} !important; box-shadow: 0 10px 30px ${currentStage.theme.shadow} !important; transition: background 0.8s ease, box-shadow 0.8s ease; }
+        body { 
+            background-color: ${currentStage.theme.bodyBg} !important;
+            background-image: ${currentStage.theme.bgImage} !important;
+            background-size: cover !important;
+            background-position: center !important;
+            background-attachment: fixed !important;
+            transition: background-image 0.8s ease, background-color 0.8s ease; 
+        }
+        #gameWrapper { background: ${currentStage.theme.wrapBg} !important; box-shadow: 0 10px 40px ${currentStage.theme.shadow} !important; transition: background 0.8s ease, box-shadow 0.8s ease; backdrop-filter: blur(5px); }
         h2 { color: ${currentStage.theme.text} !important; border-bottom-color: ${currentStage.theme.border} !important; transition: 0.8s ease; }
         .order-card { background: ${currentStage.theme.panelBg} !important; border-color: ${currentStage.theme.border} !important; transition: 0.5s ease; }
         .tab-content { background: ${currentStage.theme.panelBg} !important; border-color: ${currentStage.theme.border} !important; transition: 0.5s ease; }
