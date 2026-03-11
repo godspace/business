@@ -22,7 +22,8 @@ function showCheaterBanner() {
 
 setInterval(() => {
     if (game && !cheaterDetected) {
-        if (game.cash < -1500 || game.cash > 1000000) showCheaterBanner(); 
+        // Убрали проверку на game.cash < -1500
+        if (game.cash > 1000000) showCheaterBanner(); 
         if (game.equipment.length > 50) showCheaterBanner();
         if (game.activeLoans.length > 5) showCheaterBanner();
         if (isNaN(game.cash) || isNaN(game.day)) showCheaterBanner();
