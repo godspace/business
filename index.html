@@ -19,6 +19,19 @@
     <noscript><div><img src="https://mc.yandex.ru/watch/107009667" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
 </head>
 <body>
+    <div id="introScreen" style="
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color: #a8d6f5;
+        background-image: url('https://raw.githubusercontent.com/godspace/business/main/INTRO.jpg');
+        background-size: cover;
+        background-position: center;
+        z-index: 999999; /* Поверх всех окон */
+        transition: opacity 1s ease, visibility 1s ease; /* Плавное растворение */
+    "></div>
     <div class="game-wrapper" id="gameWrapper">
         <div class="top-bar">
             <div class="money">💰 <span id="cashDisplay">0</span></div>
@@ -178,5 +191,4 @@
     <script src="ui.js"></script>
     <script src="firebase.js"></script>
 </body>
-
 </html>

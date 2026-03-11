@@ -694,6 +694,20 @@ window.restartGame = function() {
 // ИНИЦИАЛИЗАЦИЯ И СЛУШАТЕЛИ СОБЫТИЙ ПРИ ЗАГРУЗКЕ
 // ==========================================
 document.addEventListener("DOMContentLoaded", () => {
+    
+    // --- ЛОГИКА ИНТРО-ЭКРАНА ---
+    const introScreen = document.getElementById('introScreen');
+    if (introScreen) {
+        // Ждем 3 секунды, затем начинаем плавное исчезновение (1 сек) = итого 4 сек
+        setTimeout(() => {
+            introScreen.style.opacity = '0';
+            introScreen.style.visibility = 'hidden';
+            // Полностью удаляем из кода через секунду, чтобы не блокировал клики
+            setTimeout(() => introScreen.remove(), 1000);
+        }, 3000); 
+    }
+    // ---------------------------
+
     window.loadProfileList();
 
     // 1. Окно входа
